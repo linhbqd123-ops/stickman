@@ -83,7 +83,7 @@ class Stickman {
             LL_upper  =  0.05;
             RL_upper  = -0.05;
         } else if (st === 'walk') {
-            leanAngle = dir * 0.12;
+            leanAngle = 0.12;              // positive = lean forward; wx() handles flip
             LA_upper  = -walk * 0.55;
             RA_upper  =  walk * 0.55;
             LA_lower  = Math.max(0, -walk * 0.40);
@@ -101,10 +101,10 @@ class Stickman {
             RL_upper  = -0.7;
             LL_lower  =  0.3;
             RL_lower  =  0.3;
-            leanAngle = dir * 0.08;
+            leanAngle = 0.08;
         } else if (st === 'airborne' || st === 'jump') {
             jumpOff   = -6;
-            leanAngle = dir * 0.10;
+            leanAngle = 0.10;
             LA_upper  = -0.9;
             RA_upper  =  0.9;
             LA_lower  =  0.4;
@@ -120,13 +120,13 @@ class Stickman {
             LL_upper  =  0.5;
             RL_upper  = -0.5;
         } else if (st === 'dash') {
-            leanAngle = dir * 0.35;
+            leanAngle = 0.35;
             LA_upper  = -1.0;
             RA_upper  =  1.0;
             LA_lower  =  0.3;
             RA_lower  =  0.3;
-            LL_upper  =  dir * 0.8;
-            RL_upper  = -dir * 0.5;
+            LL_upper  =  0.8;
+            RL_upper  = -0.5;
             LL_lower  =  0.5;
             RL_lower  =  0.4;
         } else if (st === 'attack') {
@@ -148,7 +148,7 @@ class Stickman {
             RA_upper  =  0.9;
             LA_lower  =  0.4;
             RA_lower  =  0.4;
-            leanAngle = -dir * 0.28;
+            leanAngle = -0.28;       // lean backward (away from hit); wx() handles flip
         } else if (dead) {
             LA_upper  = -1.4;
             RA_upper  =  1.0;
@@ -158,7 +158,7 @@ class Stickman {
             RL_upper  =  1.1;
             LL_lower  =  1.0;
             RL_lower  =  0.5;
-            leanAngle = dir * 0.5;
+            leanAngle = 0.5;
             crouchOff = 6;
         }
 
@@ -274,7 +274,13 @@ class Stickman {
     }
 
     // =========================================================
-    //  _attackPose — identical logic to vanilla stickman.js
+    //  _attackPose — all angles in LOCAL space; wx() handles flip
+    //
+    //  CONVENTION (no dir conditionals needed for angle signs):
+    //   positive angle  = limb extends toward local +X = facing direction
+    //   negative angle  = limb extends toward local -X = backward
+    //   leanAngle > 0   = torso leans FORWARD  (positive = forward, wx() flips)
+    //   leanAngle < 0   = torso leans BACKWARD
     // =========================================================
     _attackPose(atkKey, t, dir, pose, set) {
         const p   = Object.assign({}, pose);
@@ -295,177 +301,248 @@ class Stickman {
         }
         const reach = t <= startupEnd ? 0 : t <= activeEnd ? active : 1 - recovery;
 
+        // ── LIGHT NEUTRAL ─────────────────────────────────────
+        // 3-hit ground combo: Right Jab → Left Cross → Kick
         if (atkKey === 'light_neutral') {
             if (startup > 0) {
-                p.RA_upper = -0.2 + startup * 0.3;
-                p.LA_upper = -0.1;
+                // Wind-up: pull right arm back, guard left
+                p.RA_upper  = -(0.2 + startup * 0.55);
+                p.LA_upper  = -0.3;
+                p.leanAngle = -(startup * 0.10);
             } else {
-                if (active < 0.4) {
-                    p.RA_upper  = -0.1 - reach * 1.0;
-                    p.RA_lower  = reach * 0.15;
-                    p.leanAngle = reach * 0.12;
-                } else if (active < 0.7) {
-                    const t2    = (active - 0.4) / 0.3;
-                    p.LA_upper  = -0.1 - t2 * 1.0;
-                    p.LA_lower  = t2 * 0.15;
-                    p.leanAngle = -t2 * 0.10;
+                if (active < 0.38) {
+                    // Hit 1: Right Jab — RA sweeps forward
+                    const t1    = active / 0.38;
+                    p.RA_upper  = -0.75 + t1 * 1.65;   // -0.75 → +0.90
+                    p.RA_lower  = t1 * 0.35;
+                    p.LA_upper  = -0.3;
+                    p.leanAngle = t1 * 0.15;
+                } else if (active < 0.70) {
+                    // Hit 2: Left Cross — LA crosses body forward
+                    const t2    = (active - 0.38) / 0.32;
+                    p.LA_upper  = 0.25 + t2 * 0.85;    // +0.25 → +1.10 (crosses fwd)
+                    p.LA_lower  = t2 * 0.30;
+                    p.RA_upper  = 0.55;                 // RA settles back
+                    p.leanAngle = 0.15 - t2 * 0.05;
                 } else {
-                    const t3    = (active - 0.7) / 0.3;
-                    p.RL_upper  = dir > 0 ? -t3 * 1.2 : t3 * 1.2;
-                    p.RL_lower  = t3 * 0.9;
-                    p.leanAngle = dir * t3 * 0.15;
+                    // Hit 3: Kick finisher
+                    const t3    = (active - 0.70) / 0.30;
+                    p.RL_upper  = t3 * 1.40;            // kick forward
+                    p.RL_lower  = t3 * 0.90;
+                    p.leanAngle = 0.10 + t3 * 0.15;
+                    p.LA_upper  = 0.3;
+                    p.RA_upper  = 0.3;
                 }
             }
+
+        // ── LIGHT FORWARD ─────────────────────────────────────
+        // Slide step + forward kick
         } else if (atkKey === 'light_forward') {
             if (startup > 0) {
-                p.leanAngle = dir * startup * 0.20;
-                p.LL_upper  = dir > 0 ? startup * 0.3 : -startup * 0.3;
+                p.leanAngle = startup * 0.20;
+                p.RL_upper  = -(startup * 0.30);        // leg coils back
             } else {
-                p.RL_upper  = dir > 0 ? -reach * 1.3 : reach * 1.3;
+                p.RL_upper  = reach * 1.30;             // kick FORWARD (no dir cond.)
                 p.RL_lower  = reach * 0.95;
-                p.leanAngle = dir * reach * 0.28;
+                p.leanAngle = 0.20 + reach * 0.10;
                 p.LA_upper  = -0.3;
-                p.RA_upper  = 0.3;
+                p.RA_upper  =  0.4;
             }
+
+        // ── LIGHT DOWN ────────────────────────────────────────
+        // Soccer slide-tackle — whole body goes LOW, leg slides forward
         } else if (atkKey === 'light_down') {
             if (startup > 0) {
-                p.leanAngle = dir * startup * 0.4;
-                p.LL_upper  = dir > 0 ? startup * 0.4 : -startup * 0.4;
+                p.crouchOff = startup * 14;
+                p.leanAngle = startup * 0.35;
+                p.RL_upper  = startup * 0.40;
             } else {
-                p.leanAngle = dir * 0.55;
-                p.RL_upper  = dir > 0 ? -reach * 1.5 : reach * 1.5;
-                p.RL_lower  = reach * 0.4;
-                p.LL_upper  = dir > 0 ?  0.6 : -0.6;
-                p.LL_lower  = 0.3;
-                p.LA_upper  = dir > 0 ? -0.5 : 0.5;
-                p.RA_upper  = dir > 0 ?  0.5 : -0.5;
-                p.leanAngle = dir * (0.45 + reach * 0.15);
+                p.crouchOff = 14 + reach * 6;           // body very low (max ~20)
+                p.leanAngle = 0.35 + reach * 0.15;      // lean well forward
+                p.RL_upper  = reach * 1.50;             // sliding leg forward (no dir cond.)
+                p.RL_lower  = reach * 0.25;             // low to ground
+                p.LL_upper  = -0.50;                    // trailing leg stays behind
+                p.LL_lower  =  0.20;
+                p.LA_upper  = -0.30;
+                p.RA_upper  =  0.30;
             }
+
+        // ── LIGHT AIR ─────────────────────────────────────────
+        // Aerial 3-kick combo
         } else if (atkKey === 'light_air') {
             if (startup > 0) {
-                p.RL_upper = dir > 0 ? -startup * 0.5 : startup * 0.5;
+                p.RL_upper = -(startup * 0.50);         // kick leg coils back
             } else {
-                if (active < 0.4) {
-                    p.RL_upper = dir > 0 ? -reach * 1.2 : reach * 1.2;
-                    p.RL_lower = reach * 0.8;
-                } else if (active < 0.7) {
-                    const t2   = (active - 0.4) / 0.3;
-                    p.LL_upper = dir > 0 ? -t2 * 1.2 : t2 * 1.2;
-                    p.LL_lower = t2 * 0.8;
+                if (active < 0.38) {
+                    const t1   = active / 0.38;
+                    p.RL_upper = t1 * 1.20;             // kick 1 forward
+                    p.RL_lower = t1 * 0.80;
+                } else if (active < 0.70) {
+                    const t2   = (active - 0.38) / 0.32;
+                    p.LL_upper = t2 * 1.20;             // kick 2 (other leg) forward
+                    p.LL_lower = t2 * 0.80;
                 } else {
-                    const t3    = (active - 0.7) / 0.3;
-                    p.RL_upper  = dir > 0 ? -t3 * 1.4 : t3 * 1.4;
-                    p.RL_lower  = t3 * 1.0;
-                    p.leanAngle = dir * t3 * 0.18;
+                    const t3    = (active - 0.70) / 0.30;
+                    p.RL_upper  = t3 * 1.40;            // kick 3 big finish
+                    p.RL_lower  = t3 * 1.00;
+                    p.leanAngle = t3 * 0.18;
                 }
-                p.LA_upper = -0.4;
-                p.RA_upper =  0.4;
+                p.LA_upper = -0.40;
+                p.RA_upper =  0.40;
             }
+
+        // ── LIGHT AIR DOWN ────────────────────────────────────
+        // Diagonal dive-kick: body leans HARD forward, leg extends forward-downward
         } else if (atkKey === 'light_air_down') {
             if (startup > 0) {
-                p.RL_upper  = dir > 0 ? -startup * 0.8 : startup * 0.8;
-                p.leanAngle = -startup * 0.20;
+                p.RL_upper  = -(startup * 0.75);        // kick leg coils back
+                p.leanAngle = -(startup * 0.15);
             } else {
-                p.RL_upper  = dir > 0 ? -reach * 1.1 : reach * 1.1;
-                p.RL_lower  = -reach * 1.0;
-                p.LL_upper  = 0.5;
-                p.RA_upper  = dir > 0 ? -reach * 0.6 : reach * 0.6;
-                p.LA_upper  = dir > 0 ?  reach * 0.6 : -reach * 0.6;
-                p.leanAngle = -reach * 0.30;
+                // RL at total=1.40 → cos(1.40)≈0.17, sin(1.40)≈0.99 → foot almost horizontal-forward
+                // Combined with strong body lean = foot goes FAR diagonally down-forward
+                p.RL_upper  =  reach * 0.80;            // thigh swings forward
+                p.RL_lower  =  reach * 0.60;            // shin continues → diagonal kick
+                p.LL_upper  = -(reach * 0.50);          // trailing leg
+                p.RA_upper  = -(reach * 0.70);          // both arms streamline back
+                p.LA_upper  = -(reach * 0.70);
+                p.leanAngle =  reach * 0.55;            // STRONG forward dive lean
             }
+
+        // ── HEAVY NEUTRAL ─────────────────────────────────────
+        // Big horizontal haymaker punch — strong wind-up, full swing
         } else if (atkKey === 'heavy_neutral') {
             if (startup > 0) {
-                p.RA_upper  =  0.4 + startup * 0.5;
-                p.LA_upper  = -0.2;
-                p.leanAngle = -startup * 0.18;
+                // Pull arm WAY back — telegraph the hit
+                p.RA_upper  = -(0.30 + startup * 0.85); // -0.30 → -1.15
+                p.LA_upper  = -0.25;
+                p.leanAngle = -(startup * 0.28);         // lean back during wind-up
+                p.RL_upper  =  0.15;
+                p.LL_upper  = -0.15;
             } else {
-                p.RA_upper  = -0.2 - reach * 1.5;
-                p.RA_lower  = reach * 0.4;
-                p.LA_upper  =  0.5;
-                p.leanAngle = reach * 0.28;
-                p.LL_upper  =  0.18;
-                p.RL_upper  = -0.18;
+                // Full haymaker arc: arm sweeps back-to-forward
+                p.RA_upper  = -1.15 + reach * 2.40;    // -1.15 → +1.25
+                p.RA_lower  = 0.10 + reach * 0.45;
+                p.leanAngle = -0.28 + reach * 0.60;    // lean back → lean far forward
+                p.LA_upper  = -0.40;
+                p.RL_upper  =  0.15;
+                p.LL_upper  = -0.15;
             }
+
+        // ── HEAVY FORWARD ─────────────────────────────────────
+        // Dash + flying double-leg dropkick
         } else if (atkKey === 'heavy_forward') {
             if (startup > 0) {
-                p.leanAngle = dir * startup * 0.35;
-                p.LA_upper  = -startup * 0.6;
-                p.RA_upper  =  startup * 0.6;
+                p.leanAngle = startup * 0.35;
+                p.LL_upper  = -(startup * 0.45);        // legs coil back
+                p.RL_upper  = -(startup * 0.45);
+                p.LA_upper  = -(startup * 0.50);
+                p.RA_upper  =  startup * 0.50;
             } else {
-                p.LL_upper  = dir > 0 ? -reach * 1.3 : reach * 1.3;
-                p.RL_upper  = dir > 0 ? -reach * 1.3 : reach * 1.3;
-                p.LL_lower  = reach * 0.5;
-                p.RL_lower  = reach * 0.5;
-                p.leanAngle = dir * reach * 0.30;
-                p.LA_upper  = dir > 0 ? -reach * 0.7 : reach * 0.7;
-                p.RA_upper  = dir > 0 ?  reach * 0.7 : -reach * 0.7;
+                // Both legs kick FORWARD simultaneously (no dir cond.)
+                p.LL_upper  = reach * 1.20;
+                p.RL_upper  = reach * 1.40;
+                p.LL_lower  = reach * 0.50;
+                p.RL_lower  = reach * 0.60;
+                p.leanAngle = 0.35;
+                p.LA_upper  = -(0.30 + reach * 0.35);
+                p.RA_upper  = -(0.30 + reach * 0.35);
+                p.jumpOff   = -(reach * 8);             // visual lift off ground
             }
+
+        // ── HEAVY DOWN ────────────────────────────────────────
+        // Deep squat → explosive hook-uppercut to the chin (no kick, pure punch)
         } else if (atkKey === 'heavy_down') {
             if (startup > 0) {
-                p.RL_upper  = -startup * 0.6;
-                p.RL_lower  =  startup * 0.5;
-                p.leanAngle = dir * startup * 0.12;
-                p.LA_upper  = -startup * 0.4;
-                p.RA_upper  =  startup * 0.4;
+                p.crouchOff =  startup * 22;            // VERY deep squat
+                p.RA_upper  = -(startup * 0.70);        // arm coils back, fist low
+                p.RA_lower  =  startup * 0.40;          // elbow bent
+                p.LA_upper  =  startup * 0.30;          // guard arm
+                p.LL_upper  =  startup * 0.45;          // knees bend naturally
+                p.RL_upper  = -startup * 0.35;
+                p.leanAngle = -(startup * 0.20);        // slight back lean = ready
             } else {
-                p.RL_upper  = dir > 0 ? -reach * 1.7 : reach * 1.7;
-                p.RL_lower  = -reach * 0.8;
-                p.LL_upper  =  0.35;
-                p.LA_upper  = -0.5;
-                p.RA_upper  =  0.5;
-                p.leanAngle = dir * reach * 0.15;
+                // Spring up + RA hooks upward from below chin
+                // At reach≈1: RA_upper=1.40, RA_lower=1.40 → total=2.80 → cos(2.80)≈-0.94 → fist UP
+                p.crouchOff =  22 * (1 - reach);       // body snaps upright
+                p.RA_upper  = -0.70 + reach * 2.10;    // -0.70 → +1.40
+                p.RA_lower  =  0.40 + reach * 1.00;    // 0.40 → 1.40 → fist arcs up
+                p.LA_upper  =  0.30;                    // guard
+                p.LL_upper  =  0.25;
+                p.RL_upper  = -0.20;
+                p.leanAngle =  0.15 + reach * 0.20;    // lean forward into hook
             }
+
+        // ── HEAVY AIR ─────────────────────────────────────────
+        // Explosive rising uppercut: deep wind-up → RA hooks from below to above head
         } else if (atkKey === 'heavy_air') {
             if (startup > 0) {
-                p.LA_upper = -0.8 - startup * 0.4;
-                p.RA_upper =  0.8 + startup * 0.4;
-                p.LL_upper =  0.6;
-                p.RL_upper = -0.6;
-                p.LL_lower =  0.5;
-                p.RL_lower =  0.5;
+                // Wind-up: arm coils WAY back + down, body crouches before spring
+                p.RA_upper  = -(startup * 0.90);        // arm pulls backward
+                p.RA_lower  =  startup * 0.40;          // elbow bends, fist low
+                p.LA_upper  = -0.30;                    // guard arm
+                p.LL_upper  =  0.55;                    // legs tuck
+                p.RL_upper  = -0.55;
+                p.LL_lower  =  0.50;
+                p.RL_lower  =  0.50;
+                p.crouchOff =  startup * 8;             // body sinks before spring
+                p.leanAngle = -(startup * 0.25);        // lean back for wind-up
             } else {
-                p.LL_upper = dir > 0 ? -reach * 1.3 : reach * 1.3;
-                p.RL_upper = dir > 0 ? -reach * 1.3 : reach * 1.3;
-                p.LL_lower = reach * 1.4;
-                p.RL_lower = reach * 1.4;
-                p.leanAngle = 0.12;
-                p.LA_upper  = -0.3;
-                p.RA_upper  =  0.3;
+                // Uppercut arc: fist goes from BELOW hip to ABOVE head
+                // At reach≈1: RA_upper=1.20, RA_lower=2.00 → total=3.20 → cos(3.2)≈-1 → hand UP
+                p.RA_upper  = -0.90 + reach * 2.10;    // -0.90 → +1.20
+                p.RA_lower  =  0.40 + reach * 1.60;    // 0.40 → 2.00
+                p.LA_upper  = -0.70;                    // left arm trails back
+                p.LL_upper  =  0.40;
+                p.RL_upper  = -0.40;
+                p.crouchOff =  8 * (1 - reach);        // body snaps upright then rises
+                p.leanAngle = -0.25 + reach * 0.60;    // back → forward
+                p.jumpOff   = -(reach * 12);           // body at peak during hit
             }
+
+        // ── HEAVY AIR DOWN ────────────────────────────────────
+        // Straight power-stomp: legs fully extended, pointing directly downward
         } else if (atkKey === 'heavy_air_down') {
             if (startup > 0) {
-                p.LL_upper  =  startup * 0.7;
-                p.RL_upper  =  startup * 0.7;
-                p.LL_lower  =  startup * 0.5;
-                p.RL_lower  =  startup * 0.5;
-                p.leanAngle = -startup * 0.15;
+                // Tuck legs up hard
+                p.LL_upper  = -(startup * 0.70);        // legs kick back/up
+                p.RL_upper  = -(startup * 0.70);
+                p.LL_lower  =  startup * 0.65;          // knees sharply bent
+                p.RL_lower  =  startup * 0.65;
+                p.leanAngle = -(startup * 0.15);
             } else {
-                p.LL_upper  = 0.8;
-                p.RL_upper  = 0.8;
-                p.LL_lower  = reach * 1.6;
-                p.RL_lower  = reach * 1.6;
-                p.RA_upper  = dir > 0 ? -reach * 0.8 : reach * 0.8;
-                p.LA_upper  = dir > 0 ?  reach * 0.8 : -reach * 0.8;
-                p.leanAngle = -reach * 0.40;
+                // Extend: upper angles to ~0.12 (near vertical), lower to 0 (STRAIGHT)
+                p.LL_upper  = -0.70 + reach * 0.82;    // -0.70 → +0.12 (nearly vertical)
+                p.RL_upper  = -0.70 + reach * 0.82;
+                p.LL_lower  =  0.65 - reach * 0.65;    // 0.65 → 0.00  (fully straight)
+                p.RL_lower  =  0.65 - reach * 0.65;
+                // Arms spread back like a diver for balance
+                p.RA_upper  = -(0.40 + reach * 0.45);
+                p.LA_upper  = -(0.40 + reach * 0.45);
+                p.leanAngle = -(reach * 0.20);
             }
+
+        // ── ULTIMATE ──────────────────────────────────────────
+        // Epic charge → double-arm overhead slam
         } else if (atkKey === 'ultimate') {
             if (startup > 0) {
                 const s     = startup;
-                p.LA_upper  = -1.2 - s * 0.5;
-                p.RA_upper  =  1.2 + s * 0.5;
-                p.LA_lower  = -s * 0.6;
-                p.RA_lower  = -s * 0.6;
-                p.LL_upper  =  s * 0.4;
-                p.RL_upper  = -s * 0.4;
+                // Arms spread overhead like a berserker charge
+                p.LA_upper  = -(1.20 + s * 0.55);
+                p.RA_upper  =  1.20 + s * 0.55;
+                p.LA_lower  = -(s * 0.60);
+                p.RA_lower  = -(s * 0.60);
+                p.LL_upper  =  s * 0.40;
+                p.RL_upper  = -(s * 0.40);
                 p.leanAngle = 0;
             } else {
-                p.RA_upper  = -0.3 - reach * 1.5;
-                p.LA_upper  = -0.3 - reach * 1.5;
-                p.RA_lower  = reach * 0.3;
-                p.LA_lower  = reach * 0.3;
-                p.leanAngle = dir * reach * 0.30;
-                p.LL_upper  =  0.2;
-                p.RL_upper  = -0.2;
+                // Both arms sweep from behind → forward (double clothesline slam)
+                p.RA_upper  = -(1.00 - reach * 2.00);  // -1.00 → +1.00
+                p.LA_upper  = -(1.00 - reach * 2.00);  // both arms forward
+                p.RA_lower  = reach * 0.35;
+                p.LA_lower  = reach * 0.35;
+                p.leanAngle = reach * 0.38;             // body commits forward
+                p.LL_upper  =  0.20;
+                p.RL_upper  = -0.20;
             }
         }
 

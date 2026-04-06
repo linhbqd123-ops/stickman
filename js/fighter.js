@@ -62,6 +62,7 @@ class Fighter {
         this.dashTimer   = 0;
         this.dashMomentum    = 0;
         this.dashMomentumDir = 0;
+        this.dashCooldown    = 0;   // anti-spam between dashes
         this.isCrouchAttack  = false;
         this.lastAttackDir   = 'neutral';
         this.comboHitCount   = 0;
@@ -74,6 +75,11 @@ class Fighter {
         // ---- Combo tracking ----
         this._lastAttackTime = 0;
         this._comboCount     = 0;
+
+        // ---- Air state tracking ----
+        this._airJumpUsed  = false;   // double-jump token (reset on land)
+        this._usedHeavyAir = false;   // heavy_air token (reset on land)
+        this._wasOnGround  = true;
 
         // Input snapshot
         this.input      = this._emptyInput();
@@ -112,6 +118,7 @@ class Fighter {
         if (this.dodgeCooldown > 0) this.dodgeCooldown -= dt;
         if (this.dashTimer   > 0) this.dashTimer   -= dt;
         if (this.dashMomentum> 0) this.dashMomentum -= dt;
+        if (this.dashCooldown > 0) this.dashCooldown -= dt;
         if (this._dropTimer  > 0) {
             this._dropTimer -= dt;
             if (this._dropTimer <= 0) this.droppingThrough = false;
@@ -152,6 +159,12 @@ class Fighter {
 
         this._applyPhysics(dt, C);
         if (platforms) platforms.resolve(this);
+        // Reset air-use tokens on landing
+        if (this.onGround && !this._wasOnGround) {
+            this._airJumpUsed  = false;
+            this._usedHeavyAir = false;
+        }
+        this._wasOnGround = this.onGround;
         this._checkBlastZone(opponents, particles, C);
     }
 
@@ -217,6 +230,11 @@ class Fighter {
             this.vy       = C.JUMP_FORCE;
             this.onGround = false;
             Audio.playJump();
+        } else if (this._risingEdge('up') && !this.onGround && !this._airJumpUsed) {
+            // Double jump — slightly weaker
+            this.vy           = Math.round(C.JUMP_FORCE * 0.85);
+            this._airJumpUsed = true;
+            Audio.playJump && Audio.playJump();
         }
 
         if (!this.onGround) {
@@ -234,19 +252,24 @@ class Fighter {
     //  Dodge / Dash / Attack
     // =========================================================
     _handleActions(dt, opponents, particles, C) {
-        if (this.atkCooldown > 0) return;
-
         const inp  = this.input;
 
-        if (this._risingEdge('dodge') && this.dodgeCooldown <= 0) {
+        // Dodge & Dash are NOT gated by atkCooldown
+        if (this._risingEdge('dodge')) {
             const hasDir = inp.left || inp.right;
-            if (this.onGround) {
-                hasDir ? this._startDash(C) : this._startDodge(C, 0);
-            } else {
-                this._startDodge(C, inp.left ? -1 : (inp.right ? 1 : 0));
+            if (this.onGround && hasDir && this.dashCooldown <= 0) {
+                // Ground + direction = dash (own cooldown, independent of dodgeCooldown)
+                this._startDash(C);
+                return;
             }
-            return;
+            if (this.dodgeCooldown <= 0) {
+                // Neutral ground dodge or any aerial dodge
+                this._startDodge(C, this.onGround ? 0 : (inp.left ? -1 : (inp.right ? 1 : 0)));
+                return;
+            }
         }
+
+        if (this.atkCooldown > 0) return;
 
         const lightTrig = this._risingEdge('light');
         const heavyTrig = this._risingEdge('heavy');
@@ -281,6 +304,8 @@ class Fighter {
 
         this.isCrouchAttack = (this.state === 'crouch');
         this.lastAttackDir  = dir;
+        // heavy_air can only be used once per airborne period
+        if (atkKey === 'heavy_air' && !this.onGround && this._usedHeavyAir) return;
         this._startAttack(atkKey, opponents, particles, C);
     }
 
@@ -290,9 +315,12 @@ class Fighter {
         this.dodgeCooldown = C.DODGE_COOLDOWN;
         this.atkCooldown   = C.DODGE_DURATION + 80;
 
-        if (dx !== 0) {
+        if (!this.onGround) {
+            // Aerial dodge: hold vertical position; optional gentle horizontal glide
+            this.vy = 0;
+            this.vx = dx !== 0 ? dx * 4 : 0;
+        } else if (dx !== 0) {
             this.vx = dx * (C.DODGE_DIST / (C.DODGE_DURATION / 16));
-            this.vy *= 0.3;
         } else {
             this.vx *= 0.1;
         }
@@ -329,6 +357,7 @@ class Fighter {
         this.dashTimer       = C.DASH_DURATION;
         this.dashMomentum    = C.DASH_MOMENTUM;
         this.dashMomentumDir = this.facing;
+        this.dashCooldown    = C.DASH_COOLDOWN;
         this.atkCooldown     = C.DASH_DURATION + 50;
         this.vx              = this.facing * C.DASH_SPEED;
         Audio.playDash && Audio.playDash();
@@ -365,6 +394,9 @@ class Fighter {
         else this._comboCount = 1;
         this._lastAttackTime = now;
 
+        // Mark heavy_air as used for this airborne period
+        if (atkKey === 'heavy_air') this._usedHeavyAir = true;
+
         // Movement effects on attack start
         if (atk.slideSpeed)                         this.vx = this.facing * atk.slideSpeed;
         if (atk.dashSpeed)                          this.vx = this.facing * atk.dashSpeed;
@@ -386,7 +418,6 @@ class Fighter {
                 GameEffects.zoom(0.85, 500);
             } else if (atk.type === 'heavy') {
                 GameEffects.shake(1.2, 180);
-                GameEffects.flash('rgba(255,200,100,0.35)', 120);
                 GameEffects.zoom(0.95, 280);
             } else {
                 GameEffects.shake(0.5, 90);
@@ -421,7 +452,8 @@ class Fighter {
                                 range: atk.range * 0.85, yWin: atk.yWin * 1.1,
                                 dmg: hit.dmg, force: hit.force, type: atk.type,
                             };
-                            if (this._checkHit(atkKey, opp, comboAtk)) {
+                            // ignoreInv=true: combo hits always connect if in range
+                            if (this._checkHit(atkKey, opp, comboAtk, true)) {
                                 this._applyHit(atkKey, opp, comboAtk, particles, true);
                             }
                         }
@@ -505,7 +537,7 @@ class Fighter {
                 GameEffects.zoom(1.12, 400);
             } else if (atk.type === 'heavy') {
                 GameEffects.shake(1.5, 200);
-                GameEffects.flash('rgba(255,100,80,0.3)', 150);
+                if (opp.damage >= 100) GameEffects.flash('rgba(255,80,50,0.55)', 220);
                 GameEffects.zoom(1.05, 250);
             } else if (!isCombo) {
                 GameEffects.shake(0.4, 80);
@@ -515,8 +547,8 @@ class Fighter {
         Audio.playHurt && Audio.playHurt();
     }
 
-    _checkHit(atkKey, opp, atk) {
-        if (opp.invTimer > 0) return false;
+    _checkHit(atkKey, opp, atk, ignoreInv = false) {
+        if (!ignoreInv && opp.invTimer > 0) return false;
         const dx    = opp.x - this.x;
         const absDx = Math.abs(dx);
         const dy    = opp.y - this.y;
@@ -542,6 +574,11 @@ class Fighter {
         if (!this.onGround && this.state !== 'attack' && this.input && this.input.down) {
             this.vy += C.GRAVITY * 0.8;
             this.vy  = Math.min(this.vy, C.MAX_FALL);
+        }
+
+        // Aerial dodge: counteract gravity every frame to hold height
+        if (this.dodgeTimer > 0 && !this.onGround) {
+            this.vy = 0;
         }
 
         if (this.state === 'attack' && this.attackType === 'heavy_air_down') {
@@ -654,6 +691,10 @@ class Fighter {
         this.input           = this._emptyInput();
         this._prevInput      = this._emptyInput();
         this.tick            = 0;
+        this.dashCooldown    = 0;
+        this._airJumpUsed    = false;
+        this._usedHeavyAir   = false;
+        this._wasOnGround    = true;
     }
 
     /** Called by GameScene._render() */

@@ -11,14 +11,14 @@ const CONFIG = Object.freeze({
     // Blast zones (losing a stock when crossing these)
     BLAST_LEFT:   -300,
     BLAST_RIGHT:  1580,
-    BLAST_TOP:    -400,
+    BLAST_TOP:    -750,
     BLAST_BOTTOM: 900,
 
     // Physics
     GRAVITY:        0.55,
     MOVE_SPEED:     5.5,     // max ground run speed
     AIR_MOVE:       3.5,     // horizontal air-control force
-    JUMP_FORCE:    -17,
+    JUMP_FORCE:    -14,
     FRICTION:       0.78,    // ground decel
     AIR_FRICTION:   0.92,    // air horizontal drag
     MAX_FALL:       22,
@@ -28,6 +28,7 @@ const CONFIG = Object.freeze({
     DODGE_COOLDOWN: 3000,    // ms, 3 second cooldown from button press
     DASH_DURATION:  200,     // ms, grounded dash duration
     DASH_MOMENTUM:  500,     // ms, momentum after dash (0.5s carryover)
+    DASH_COOLDOWN:  200,     // ms, anti-spam cooldown between dashes
     FAST_FALL_ACCEL: 1.5,    // multiplier on gravity when holding down in air
 
     // Stock system
@@ -91,7 +92,7 @@ const CONFIG = Object.freeze({
             type: 'light', context: 'air', dir: 'down',
             dmg: 7, force: 9, delay_start: 0, delay_end: 140,
             range: 80, yWin: 60,
-            diveVx: 5, diveVy: 8
+            diveVx: 9, diveVy: 5
         },
 
         // ── HEAVY ATTACKS  (delay_start: 70 ms for telegraphed weight) ────
@@ -119,12 +120,12 @@ const CONFIG = Object.freeze({
             kbUp: true
         },
 
-        // Air neutral: mini extra-jump then sky-slam → strong knockback
+        // Air neutral: full-jump boost then rising uppercut → launches enemy upward
         'heavy_air': {
             type: 'heavy', context: 'air', dir: 'neutral',
             dmg: 14, force: 18, delay_start: 70, delay_end: 170,
-            range: 90, yWin: 90,
-            extraJumpVy: -9
+            range: 90, yWin: 100,
+            extraJumpVy: -12
         },
 
         // Air down: straight-down power-dive; continues while down is held
