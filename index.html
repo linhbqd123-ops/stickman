@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stickman Fighter</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body>
+    <div id="app">
+
+        <!-- ===== MAIN MENU ===== -->
+        <div id="screen-menu" class="screen active">
+            <div class="menu-wrap">
+                <h1 class="game-title">STICKMAN<br><span>FIGHTER</span></h1>
+                <nav class="menu-nav">
+                    <button class="menu-btn" data-mode="twoPlayer">⚔ 2 PLAYER</button>
+                    <button class="menu-btn" data-mode="singlePlayer">🤖 VS BOT</button>
+                    <button class="menu-btn" data-mode="training">🥊 TRAINING</button>
+                    <button class="menu-btn" data-mode="tournament">🏆 TOURNAMENT</button>
+                </nav>
+                <div class="controls-hint">
+                    <div class="hint-col">
+                        <b>Player 1</b><br>
+                        Move: <kbd>A</kbd><kbd>D</kbd> / Jump: <kbd>W</kbd><br>
+                        Punch: <kbd>F</kbd> &nbsp; Kick: <kbd>G</kbd>
+                    </div>
+                    <div class="hint-divider"></div>
+                    <div class="hint-col">
+                        <b>Player 2</b><br>
+                        Move: <kbd>←</kbd><kbd>→</kbd> / Jump: <kbd>↑</kbd><br>
+                        Punch: <kbd>L</kbd> &nbsp; Kick: <kbd>K</kbd>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== GAME SCREEN ===== -->
+        <div id="screen-game" class="screen">
+
+            <!-- HUD -->
+            <div id="hud">
+                <div class="hud-player" id="hud-p1">
+                    <span class="hud-name" id="p1-name">PLAYER 1</span>
+                    <div class="hp-bar-track">
+                        <div class="hp-bar-fill" id="p1-hp-bar"></div>
+                    </div>
+                    <span class="hp-text" id="p1-hp-text">100</span>
+                    <div class="win-pips" id="p1-pips"></div>
+                </div>
+
+                <div class="hud-center">
+                    <div id="round-label">ROUND 1</div>
+                    <div id="timer-display">60</div>
+                    <div id="mode-tag"></div>
+                </div>
+
+                <div class="hud-player right" id="hud-p2">
+                    <span class="hud-name" id="p2-name">CPU</span>
+                    <div class="hp-bar-track">
+                        <div class="hp-bar-fill p2" id="p2-hp-bar"></div>
+                    </div>
+                    <span class="hp-text" id="p2-hp-text">100</span>
+                    <div class="win-pips" id="p2-pips"></div>
+                </div>
+            </div>
+
+            <!-- Canvas -->
+            <div id="canvas-wrap">
+                <canvas id="game-canvas"></canvas>
+            </div>
+        </div>
+
+        <!-- ===== ROUND RESULT OVERLAY ===== -->
+        <div id="overlay-result" class="overlay hidden">
+            <div class="overlay-box">
+                <h2 id="result-title">KO!</h2>
+                <p id="result-subtitle">Player 1 wins the round!</p>
+                <div class="overlay-btns">
+                    <button class="menu-btn" id="btn-continue">CONTINUE</button>
+                    <button class="menu-btn secondary" id="btn-to-menu">MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== TOURNAMENT VICTORY ===== -->
+        <div id="overlay-tournament-win" class="overlay hidden">
+            <div class="overlay-box champ">
+                <div class="trophy-icon">🏆</div>
+                <h1>CHAMPION!</h1>
+                <p id="tournament-win-msg">You conquered the tournament!</p>
+                <button class="menu-btn gold" id="btn-trophy-menu">MAIN MENU</button>
+            </div>
+        </div>
+
+        <!-- ===== TOURNAMENT ROUND OPENER ===== -->
+        <div id="overlay-fight-start" class="overlay hidden">
+            <div class="fight-start-text" id="fight-start-text">ROUND 1</div>
+        </div>
+
+    </div>
+
+    <!-- Scripts — load order matters -->
+    <script src="js/config.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/stickman.js"></script>
+    <script src="js/fighter.js"></script>
+    <script src="js/bot.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/game.js"></script>
+</body>
+
+</html>
