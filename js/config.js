@@ -136,11 +136,53 @@ const CONFIG = Object.freeze({
             straightDive: true, diveVy: 18
         },
 
-        // ── ULTIMATE ──────────────────────────────────────────────────────
+        // ── ULTIMATE (default / fallback) ──────────────────────────────────
         'ultimate': {
             type: 'ultimate', context: 'any', dir: 'neutral',
             dmg: 35, force: 24, delay_start: 350, delay_end: 600,
             range: 200, yWin: 220
+        },
+
+        // ── SKILL ULTIMATES (unlocked by collecting skill items on the map) ──
+
+        // FIRE — rocket punch: dash through enemy at high speed
+        'ultimate_fire': {
+            type: 'ultimate', context: 'any', dir: 'neutral',
+            dmg: 28, force: 26, delay_start: 80, delay_end: 320,
+            range: 150, yWin: 130,
+            dashSpeed: 20
+        },
+
+        // THUNDER — leap + overhead two-fist slam down
+        'ultimate_thunder': {
+            type: 'ultimate', context: 'any', dir: 'neutral',
+            dmg: 30, force: 22, delay_start: 160, delay_end: 380,
+            range: 110, yWin: 140,
+            extraJumpVy: -12,
+            kbUp: false   // thunderslam sends straight up-forward
+        },
+
+        // VOID — wide radial blast, hits ALL enemies regardless of facing
+        'ultimate_void': {
+            type: 'ultimate', context: 'any', dir: 'neutral',
+            dmg: 32, force: 25, delay_start: 350, delay_end: 600,
+            range: 240, yWin: 280,
+            radial: true   // knockback direction = away from attacker
+        },
+
+        // BERSERK — rapid 5-hit combo, each hit small KB to keep enemy close
+        'ultimate_berserk': {
+            type: 'ultimate', context: 'any', dir: 'neutral',
+            dmg: 6, force: 5, delay_start: 50, delay_end: 380,
+            range: 90, yWin: 120,
+            slideSpeed: 3,
+            combo: [
+                { dmg: 5,  force: 4,  delay:  80 },
+                { dmg: 5,  force: 4,  delay: 155 },
+                { dmg: 7,  force: 6,  delay: 240 },
+                { dmg: 7,  force: 6,  delay: 320 },
+                { dmg: 18, force: 24, delay: 430 }   // final hit — big launch
+            ]
         }
     },
 
@@ -150,6 +192,19 @@ const CONFIG = Object.freeze({
         GAIN_ON_HIT:  8,    // attacker gains this when landing a hit
         GAIN_ON_HURT: 5,    // defender gains this when being hit
     },
+
+    // ── SKILL ITEM SYSTEM ────────────────────────────────────────────────────
+    //  Skill items spawn on platforms. Touching one stores it on the fighter.
+    //  When energy is full (light+heavy) the stored skill fires as ultimate.
+    SKILLS: {
+        fire:    { atkKey: 'ultimate_fire',    name: 'FIRE',    color: '#ff6600', shadow: 'rgba(255,102,0,0.8)' },
+        thunder: { atkKey: 'ultimate_thunder', name: 'THUNDER', color: '#ffe040', shadow: 'rgba(255,220,40,0.8)' },
+        void:    { atkKey: 'ultimate_void',    name: 'VOID',    color: '#cc44ff', shadow: 'rgba(180,0,255,0.8)'  },
+        berserk: { atkKey: 'ultimate_berserk', name: 'BERSERK', color: '#ff2244', shadow: 'rgba(255,30,60,0.8)'  },
+    },
+    SKILL_SPAWN_INTERVAL: 14000,  // ms between new skill item spawns
+    SKILL_LIFETIME:       22000,  // ms before an uncollected item despawns
+    SKILL_RADIUS:         22,     // px — collection/draw radius
 
     HURT_DURATION:     180,   // ms stun after being hit
     INVINCIBLE_FRAMES: 60,    // ms right after a stock loss (respawn invin)

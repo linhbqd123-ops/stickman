@@ -52,8 +52,12 @@ class GameScene extends Phaser.Scene {
         this._afterImgGfx   = this.add.graphics().setDepth(2);
         this._fighterGfxArr = [];   // one entry per fighter, depth 3
         this._particleGfx   = this.add.graphics().setDepth(4);
+        this._skillGfx      = this.add.graphics().setDepth(2.5);
         // Screen-space blast-zone guide (optional, cosmetic)
         this._bzGfx         = this.add.graphics().setDepth(5).setScrollFactor(0);
+
+        // ---- Skill items (orbs that spawn on platforms) ----
+        this._skillItems = [];
 
         // ---- Sub-systems ----
         this._platforms  = new PlatformSystem();
@@ -97,6 +101,15 @@ class GameScene extends Phaser.Scene {
         this.game.events.on('game:resume', this._resumeFromPause, this);
         this.game.events.on('game:exit',   this._exitToMenu,      this);
 
+        // ---- Skill item spawn timer (first ~8 s in, then every SKILL_SPAWN_INTERVAL) ----
+        this.time.addEvent({
+            delay:         CONFIG.SKILL_SPAWN_INTERVAL,
+            repeat:        -1,
+            callback:      this._spawnSkillItem,
+            callbackScope: this,
+            startAt:       CONFIG.SKILL_SPAWN_INTERVAL - 8000,
+        });
+
         // ---- Fight start countdown ----
         UI.flashFightStart('FIGHT!', 1000);
         this.time.delayedCall(1000, () => {
@@ -118,6 +131,7 @@ class GameScene extends Phaser.Scene {
         this._updateBots(delta);
         this._updateFighters(delta);
         this._particles.update(delta);
+        this._updateSkillItems(delta);
         this._updateCamera(delta);
         this._checkMatchOver();
 
@@ -361,6 +375,75 @@ class GameScene extends Phaser.Scene {
     }
 
     // =========================================================
+    //  Skill Items — spawning, collection, rendering
+    // =========================================================
+    _spawnSkillItem() {
+        if (this.matchOver) return;
+        if (this._skillItems.length >= 3) return;   // max 3 active at once
+
+        const plats    = CONFIG.PLATFORMS;
+        // Prefer floating platforms (index 1+); fall back to ground if there's only one
+        const pool     = plats.length > 1 ? plats.slice(1) : plats;
+        const plat     = pool[Math.floor(Math.random() * pool.length)];
+        const x        = plat.x + plat.w * (0.25 + Math.random() * 0.5);
+        const y        = plat.y - CONFIG.SKILL_RADIUS - 6;
+        const keys     = Object.keys(CONFIG.SKILLS);
+        const skillKey = keys[Math.floor(Math.random() * keys.length)];
+        this._skillItems.push({ x, y, skillKey, lifetime: CONFIG.SKILL_LIFETIME, animTick: 0 });
+    }
+
+    _updateSkillItems(dt) {
+        const R = CONFIG.SKILL_RADIUS + 20;   // collection radius (slightly larger than visual)
+        this._skillItems = this._skillItems.filter(item => {
+            item.lifetime -= dt;
+            item.animTick += dt / 16.667;
+            if (item.lifetime <= 0) return false;
+            for (const f of this.fighters) {
+                if (f.state === 'dead' || f._respawning) continue;
+                if (f.collectedSkill) continue;       // already holds a skill
+                const dx = f.x - item.x;
+                const dy = (f.y - 45) - item.y;      // offset to fighter torso centre
+                if (dx * dx + dy * dy < R * R) {
+                    f.collectSkill(item.skillKey);
+                    return false;                     // item consumed
+                }
+            }
+            return true;
+        });
+    }
+
+    _renderSkillItems() {
+        const g = this._skillGfx;
+        for (const item of this._skillItems) {
+            const s        = CONFIG.SKILLS[item.skillKey];
+            const sc       = parseInt(s.color.replace('#', ''), 16);
+            const R        = CONFIG.SKILL_RADIUS;
+            const fadeFrac = Math.min(1, item.lifetime / 3000);  // fade in last 3 s
+            const pulse    = 0.55 + Math.sin(item.animTick * 3.5) * 0.45;
+            const bob      = Math.sin(item.animTick * 2.2) * 4;  // gentle vertical bob
+            const iy       = item.y + bob;
+
+            // Outer glow halo
+            g.lineStyle(4, sc, 0.18 * fadeFrac);
+            g.strokeCircle(item.x, iy, R + 9);
+            // Main ring
+            g.lineStyle(2, sc, pulse * 0.85 * fadeFrac);
+            g.strokeCircle(item.x, iy, R);
+            // Core fill
+            g.fillStyle(sc, pulse * 0.85 * fadeFrac);
+            g.fillCircle(item.x, iy, R * 0.60);
+            // Inner bright centre
+            g.fillStyle(0xffffff, pulse * 0.45 * fadeFrac);
+            g.fillCircle(item.x, iy, R * 0.22);
+            // Cross sparkle
+            const cr = R * 0.32;
+            g.lineStyle(1.5, 0xffffff, pulse * 0.55 * fadeFrac);
+            g.beginPath(); g.moveTo(item.x - cr, iy); g.lineTo(item.x + cr, iy); g.strokePath();
+            g.beginPath(); g.moveTo(item.x, iy - cr); g.lineTo(item.x, iy + cr); g.strokePath();
+        }
+    }
+
+    // =========================================================
     //  Win Condition
     // =========================================================
     _checkMatchOver() {
@@ -534,10 +617,14 @@ class GameScene extends Phaser.Scene {
         this._platGfx.clear();
         this._afterImgGfx.clear();
         this._particleGfx.clear();
+        this._skillGfx.clear();
         for (const g of this._fighterGfxArr) g.clear();
 
         // Platforms
         this._platforms.draw(this._platGfx);
+
+        // Skill items (glowing orbs on platforms)
+        this._renderSkillItems();
 
         // After-images (dodge trail)
         this._drawAfterImages();

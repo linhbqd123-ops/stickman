@@ -46,6 +46,7 @@ class Fighter {
 
         // ---- Energy ----
         this.energy  = 0;
+        this.collectedSkill = null;   // key in CONFIG.SKILLS, e.g. 'fire'
 
         // ---- Combat state ----
         this.state       = 'idle';
@@ -274,12 +275,14 @@ class Fighter {
         const lightTrig = this._risingEdge('light');
         const heavyTrig = this._risingEdge('heavy');
 
-        // Ultimate (light+heavy simultaneously)
-        if (this.energy >= CONFIG.ENERGY.MAX) {
+        // Ultimate: requires a collected skill item (light+heavy at full energy)
+        if (this.collectedSkill && this.energy >= CONFIG.ENERGY.MAX) {
             const ultiTrig = (lightTrig && inp.heavy) || (heavyTrig && inp.light) || (lightTrig && heavyTrig);
             if (ultiTrig) {
+                const skillDef = CONFIG.SKILLS[this.collectedSkill];
                 this.energy = 0;
-                this._startAttack('ultimate', opponents, particles, C);
+                this.collectedSkill = null;
+                this._startAttack(skillDef.atkKey, opponents, particles, C);
                 return;
             }
         }
@@ -461,14 +464,38 @@ class Fighter {
                 });
             }
 
-            // Ultimate explosion
-            if (atkKey === 'ultimate' && particles) {
-                for (let i = 0; i < 3; i++) {
-                    this._scheduleTimer(i * 120, () => particles.spawnShockwave(this.x, this.y - 60, 2 + i));
+            // Ultimate explosion / effects per skill
+            if (atkKey.startsWith('ultimate') && particles) {
+                if (atkKey === 'ultimate_void') {
+                    for (let i = 0; i < 5; i++)
+                        this._scheduleTimer(i * 80, () => particles.spawnShockwave(this.x, this.y - 50, 1.5 + i * 0.5));
+                    particles.spawnExplosion && particles.spawnExplosion(this.x, this.y - 50);
+                } else if (atkKey === 'ultimate_thunder') {
+                    for (let i = 0; i < 3; i++)
+                        this._scheduleTimer(i * 100, () => particles.spawnShockwave(this.x, this.y - 30, 1.5 + i));
+                } else if (atkKey === 'ultimate_berserk') {
+                    particles.spawnExplosion && particles.spawnExplosion(this.x, this.y - 60);
+                } else {
+                    // fire, default ultimate
+                    for (let i = 0; i < 3; i++)
+                        this._scheduleTimer(i * 120, () => particles.spawnShockwave(this.x, this.y - 60, 2 + i));
+                    particles.spawnExplosion && particles.spawnExplosion(this.x, this.y - 60);
                 }
-                particles.spawnExplosion && particles.spawnExplosion(this.x, this.y - 60);
             }
         });
+    }
+
+    // =========================================================
+    //  Skill collection
+    // =========================================================
+    collectSkill(skillKey) {
+        this.collectedSkill = skillKey;
+        const s = CONFIG.SKILLS[skillKey];
+        if (window.GameEffects && s) {
+            GameEffects.flash(s.shadow, 350);
+            GameEffects.shake(0.8, 150);
+        }
+        Audio.playPowerUp && Audio.playPowerUp();
     }
 
     // Unified timer — uses Phaser scene timer when available (respects pause),
@@ -503,8 +530,14 @@ class Fighter {
             kbx = this.facing * F * 0.15; kby =  F * 1.0;
         } else if (atkKey === 'heavy_air') {
             kbx = this.facing * F * 0.5;  kby = -F * 0.85;
-        } else if (atkKey === 'ultimate') {
-            kbx = (opp.x >= this.x ? 1 : -1) * F * 0.9; kby = -F * 0.75;
+        } else if (atkKey.startsWith('ultimate') || atkKey === 'ultimate') {
+            // Radial: direction based on relative position (all ultimate types)
+            const kbDir = (opp.x >= this.x ? 1 : -1);
+            if (atk.radial) {
+                kbx = kbDir * F * 0.95; kby = -F * 0.55;
+            } else {
+                kbx = kbDir * F * 0.9;  kby = -F * 0.75;
+            }
         } else {
             kbx = this.facing * F; kby = -F * 0.55;
         }
@@ -516,7 +549,7 @@ class Fighter {
         opp.hurtTimer = C.HURT_DURATION;
         opp.invTimer  = isCombo ? 60 : 120;
 
-        if (atkKey !== 'ultimate') {
+        if (atkKey !== 'ultimate' && !atkKey.startsWith('ultimate_')) {
             this.energy = Math.min(C.ENERGY.MAX, this.energy + C.ENERGY.GAIN_ON_HIT);
         }
         opp.energy = Math.min(C.ENERGY.MAX, (opp.energy || 0) + C.ENERGY.GAIN_ON_HURT);
@@ -525,15 +558,23 @@ class Fighter {
             const hitY = opp.y - 40;
             particles.spawnBlood   && particles.spawnBlood(opp.x, hitY, this.facing);
             particles.spawnSpark   && particles.spawnSpark(opp.x, hitY);
-            if (atk.type === 'heavy') {
+            if (atk.type === 'ultimate') {
+                particles.spawnShockwave && particles.spawnShockwave(opp.x, hitY, 1.8);
+            } else if (atk.type === 'heavy') {
                 particles.spawnShockwave && particles.spawnShockwave(opp.x, hitY, 1.3);
             }
         }
 
         if (window.GameEffects) {
             if (atk.type === 'ultimate') {
+                const skillColor = {
+                    ultimate_fire:    'rgba(255,100,0,0.7)',
+                    ultimate_thunder: 'rgba(255,240,50,0.75)',
+                    ultimate_void:    'rgba(180,0,255,0.65)',
+                    ultimate_berserk: 'rgba(255,30,60,0.65)',
+                }[atkKey] || 'rgba(255,200,50,0.65)';
                 GameEffects.shake(3.0, 500);
-                GameEffects.flash('rgba(255,200,50,0.65)', 400);
+                GameEffects.flash(skillColor, 400);
                 GameEffects.zoom(1.12, 400);
             } else if (atk.type === 'heavy') {
                 GameEffects.shake(1.5, 200);
@@ -695,6 +736,7 @@ class Fighter {
         this._airJumpUsed    = false;
         this._usedHeavyAir   = false;
         this._wasOnGround    = true;
+        this.collectedSkill  = null;
     }
 
     /** Called by GameScene._render() */

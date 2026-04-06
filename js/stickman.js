@@ -206,6 +206,25 @@ class Stickman {
             g.fillStyle(strokeInt, dimAlpha);
             g.fillCircle(wx(H * 0.38), headY - H * 0.1, 2.5);
         }
+
+        // ---- Skill indicator (orb above head) ----
+        if (!dead && state.collectedSkill && dimAlpha >= 1) {
+            const skillDef = CONFIG.SKILLS[state.collectedSkill];
+            if (skillDef) {
+                const sc = _cssToInt(skillDef.color);
+                const ready = state.energy >= CONFIG.ENERGY.MAX;
+                const pulse = ready ? (0.55 + Math.sin(tick * 10) * 0.45) : 0.40;
+                const r     = ready ? 7 : 5;
+                // Glow ring
+                g.lineStyle(3, sc, pulse * 0.6);
+                g.beginPath();
+                g.arc(cx, headY - H - 14, r + 3, 0, Math.PI * 2);
+                g.strokePath();
+                // Core orb
+                g.fillStyle(sc, pulse);
+                g.fillCircle(cx, headY - H - 14, r);
+            }
+        }
     }
 
     // =========================================================
@@ -543,6 +562,109 @@ class Stickman {
                 p.leanAngle = reach * 0.38;             // body commits forward
                 p.LL_upper  =  0.20;
                 p.RL_upper  = -0.20;
+            }
+
+        // ── ULTIMATE FIRE ─────────────────────────────────────
+        // Rocket punch: body angles 45° forward, arm becomes a battering ram
+        } else if (atkKey === 'ultimate_fire') {
+            if (startup > 0) {
+                p.leanAngle = -(startup * 0.38);        // lean BACK in wind-up
+                p.RA_upper  = -(startup * 1.00);        // fist coils behind
+                p.LA_upper  =  startup * 0.35;
+                p.RL_upper  =  startup * 0.25;
+                p.LL_upper  = -startup * 0.20;
+            } else {
+                p.leanAngle =  reach * 0.55;            // lean hard forward
+                p.RA_upper  = -1.00 + reach * 2.10;    // -1.00 → +1.10 full extension
+                p.RA_lower  =  reach * 0.30;
+                p.LA_upper  = -0.60;
+                p.RL_upper  =  0.30;
+                p.LL_upper  = -0.30;
+                p.jumpOff   = -(reach * 6);
+            }
+
+        // ── ULTIMATE THUNDER ──────────────────────────────────
+        // Leap + overhead two-fist earth-slam
+        } else if (atkKey === 'ultimate_thunder') {
+            if (startup > 0) {
+                // Both arms rise overhead, body lifts
+                p.LA_upper  = -(1.10 + startup * 0.60);
+                p.RA_upper  =  1.10 + startup * 0.60;
+                p.LA_lower  = -(startup * 0.50);
+                p.RA_lower  = -(startup * 0.50);
+                p.LL_upper  =  startup * 0.55;
+                p.RL_upper  = -startup * 0.55;
+                p.LL_lower  =  startup * 0.45;
+                p.RL_lower  =  startup * 0.45;
+                p.jumpOff   = -(startup * 16);
+                p.leanAngle =  startup * 0.10;
+            } else {
+                // Both fists crash DOWN together
+                p.LA_upper  = -1.70 + reach * 1.80;    // both arms slam forward-down
+                p.RA_upper  =  1.70 - reach * 1.80;
+                p.LA_lower  =  reach * 0.30;
+                p.RA_lower  =  reach * 0.30;
+                p.leanAngle =  reach * 0.40;
+                p.crouchOff =  reach * 12;
+                p.LL_upper  =  0.30;
+                p.RL_upper  = -0.30;
+                p.jumpOff   = -16 * (1 - reach);
+            }
+
+        // ── ULTIMATE VOID ─────────────────────────────────────
+        // Wide radial blast: gather energy → thrust both arms outward
+        } else if (atkKey === 'ultimate_void') {
+            if (startup > 0) {
+                const s = startup;
+                p.LA_upper  = -(1.30 + s * 0.45);
+                p.RA_upper  =  1.30 + s * 0.45;
+                p.LA_lower  = -(s * 0.45);
+                p.RA_lower  = -(s * 0.45);
+                p.LL_upper  =  s * 0.35;
+                p.RL_upper  = -(s * 0.35);
+                p.leanAngle = -(s * 0.08);
+            } else {
+                p.LA_upper  = -(1.75 - reach * 0.85);
+                p.RA_upper  =  1.75 - reach * 0.85;
+                p.LA_lower  = -(0.45 + reach * 0.35);
+                p.RA_lower  =  0.45 + reach * 0.35;
+                p.leanAngle =  reach * 0.15;
+                p.LL_upper  =  0.35;
+                p.RL_upper  = -0.35;
+            }
+
+        // ── ULTIMATE BERSERK ──────────────────────────────────
+        // Rapid 5-hit flurry: alternating jabs → final big uppercut
+        } else if (atkKey === 'ultimate_berserk') {
+            if (startup > 0) {
+                p.RA_upper  = -(startup * 0.50);
+                p.LA_upper  = -0.20;
+                p.leanAngle =  startup * 0.10;
+            } else {
+                const phase = Math.min(4, Math.floor(active * 5));  // 0..4
+                const tp    = (active * 5) - phase;                 // 0..1 within phase
+                if (phase < 4) {
+                    // Alternating rapid jabs
+                    const isRA = (phase % 2 === 0);
+                    const ext  = Math.sin(tp * Math.PI);            // 0→1→0
+                    if (isRA) {
+                        p.RA_upper  = -0.50 + ext * 1.50;
+                        p.RA_lower  = ext * 0.25;
+                        p.LA_upper  = -0.25;
+                    } else {
+                        p.LA_upper  =  0.15 + ext * 1.10;
+                        p.LA_lower  = ext * 0.25;
+                        p.RA_upper  =  0.35;
+                    }
+                    p.leanAngle = (isRA ? 1 : -1) * ext * 0.14;
+                } else {
+                    // Final uppercut
+                    p.RA_upper  = -0.90 + tp * 2.10;
+                    p.RA_lower  =  0.40 + tp * 1.60;
+                    p.LA_upper  = -0.70;
+                    p.leanAngle = -0.25 + tp * 0.60;
+                    p.jumpOff   = -(tp * 10);
+                }
             }
         }
 
