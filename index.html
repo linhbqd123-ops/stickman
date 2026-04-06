@@ -1,116 +1,186 @@
-<!DOCTYPE html>
-<html lang="en">
-
+﻿<!DOCTYPE html>
+<html lang="vi">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stickman Fighter</title>
+    <title>Stickman Fighter — Phaser Edition</title>
+    <meta name="description" content="Stickman Fighting game powered by Phaser 3 — WebGL rendering, smooth animation." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/style.css" />
+    <!-- Phaser 3 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.88.2/dist/phaser.min.js"></script>
 </head>
 
 <body>
-    <div id="app">
+<div id="app">
 
-        <!-- ===== MAIN MENU ===== -->
-        <div id="screen-menu" class="screen active">
-            <div class="menu-wrap">
+    <!-- ===== MAIN MENU ===== -->
+    <div id="screen-menu" class="screen active">
+        <div class="menu-wrap">
+            <div class="menu-logo">
                 <h1 class="game-title">STICKMAN<br><span>FIGHTER</span></h1>
-                <nav class="menu-nav">
-                    <button class="menu-btn" data-mode="twoPlayer">⚔ 2 PLAYER</button>
-                    <button class="menu-btn" data-mode="singlePlayer">🤖 VS BOT</button>
-                    <button class="menu-btn" data-mode="training">🥊 TRAINING</button>
-                    <button class="menu-btn" data-mode="tournament">🏆 TOURNAMENT</button>
-                </nav>
-                <div class="controls-hint">
-                    <div class="hint-col">
-                        <b>Player 1</b><br>
-                        Move: <kbd>A</kbd><kbd>D</kbd> / Jump: <kbd>W</kbd><br>
-                        Punch: <kbd>F</kbd> &nbsp; Kick: <kbd>G</kbd>
-                    </div>
-                    <div class="hint-divider"></div>
-                    <div class="hint-col">
-                        <b>Player 2</b><br>
-                        Move: <kbd>←</kbd><kbd>→</kbd> / Jump: <kbd>↑</kbd><br>
-                        Punch: <kbd>L</kbd> &nbsp; Kick: <kbd>K</kbd>
-                    </div>
+                <p class="game-sub">PHASER EDITION</p>
+            </div>
+            <nav class="menu-nav">
+                <button class="menu-btn primary" data-action="play-menu">⚔ PLAY</button>
+            </nav>
+            <div class="controls-hint">
+                <div class="hint-col">
+                    <b>Player 1</b><br>
+                    Move: <kbd>A</kbd><kbd>D</kbd> / Jump: <kbd>W</kbd> / Down: <kbd>S</kbd><br>
+                    Light: <kbd>J</kbd> &nbsp; Heavy: <kbd>K</kbd> &nbsp; Dodge/Dash: <kbd>L</kbd><br>
+                    <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate: <kbd>J</kbd>+<kbd>K</kbd> (Energy full)</span>
+                </div>
+                <div class="hint-divider"></div>
+                <div class="hint-col">
+                    <b>Player 2</b><br>
+                    Move: <kbd>←</kbd><kbd>→</kbd> / Jump: <kbd>↑</kbd> / Down: <kbd>↓</kbd><br>
+                    Light: <kbd>Num1</kbd> &nbsp; Heavy: <kbd>Num2</kbd> &nbsp; Dodge/Dash: <kbd>Num3</kbd><br>
+                    <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate: <kbd>Num1</kbd>+<kbd>Num2</kbd> (Energy full)</span>
                 </div>
             </div>
         </div>
-
-        <!-- ===== GAME SCREEN ===== -->
-        <div id="screen-game" class="screen">
-
-            <!-- HUD -->
-            <div id="hud">
-                <div class="hud-player" id="hud-p1">
-                    <span class="hud-name" id="p1-name">PLAYER 1</span>
-                    <div class="hp-bar-track">
-                        <div class="hp-bar-fill" id="p1-hp-bar"></div>
-                    </div>
-                    <span class="hp-text" id="p1-hp-text">100</span>
-                    <div class="win-pips" id="p1-pips"></div>
-                </div>
-
-                <div class="hud-center">
-                    <div id="round-label">ROUND 1</div>
-                    <div id="timer-display">60</div>
-                    <div id="mode-tag"></div>
-                </div>
-
-                <div class="hud-player right" id="hud-p2">
-                    <span class="hud-name" id="p2-name">CPU</span>
-                    <div class="hp-bar-track">
-                        <div class="hp-bar-fill p2" id="p2-hp-bar"></div>
-                    </div>
-                    <span class="hp-text" id="p2-hp-text">100</span>
-                    <div class="win-pips" id="p2-pips"></div>
-                </div>
-            </div>
-
-            <!-- Canvas -->
-            <div id="canvas-wrap">
-                <canvas id="game-canvas"></canvas>
-            </div>
-        </div>
-
-        <!-- ===== ROUND RESULT OVERLAY ===== -->
-        <div id="overlay-result" class="overlay hidden">
-            <div class="overlay-box">
-                <h2 id="result-title">KO!</h2>
-                <p id="result-subtitle">Player 1 wins the round!</p>
-                <div class="overlay-btns">
-                    <button class="menu-btn" id="btn-continue">CONTINUE</button>
-                    <button class="menu-btn secondary" id="btn-to-menu">MENU</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== TOURNAMENT VICTORY ===== -->
-        <div id="overlay-tournament-win" class="overlay hidden">
-            <div class="overlay-box champ">
-                <div class="trophy-icon">🏆</div>
-                <h1>CHAMPION!</h1>
-                <p id="tournament-win-msg">You conquered the tournament!</p>
-                <button class="menu-btn gold" id="btn-trophy-menu">MAIN MENU</button>
-            </div>
-        </div>
-
-        <!-- ===== TOURNAMENT ROUND OPENER ===== -->
-        <div id="overlay-fight-start" class="overlay hidden">
-            <div class="fight-start-text" id="fight-start-text">ROUND 1</div>
-        </div>
-
     </div>
 
-    <!-- Scripts — load order matters -->
-    <script src="js/config.js"></script>
-    <script src="js/audio.js"></script>
-    <script src="js/particles.js"></script>
-    <script src="js/stickman.js"></script>
-    <script src="js/fighter.js"></script>
-    <script src="js/bot.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/game.js"></script>
-</body>
+    <!-- ===== MODE SELECT ===== -->
+    <div id="screen-mode-select" class="screen">
+        <div class="menu-wrap">
+            <h2 class="section-title">SELECT MODE</h2>
+            <nav class="menu-nav">
+                <button class="menu-btn" data-action="1v1-pvp">👥 1v1 — 2 PLAYERS</button>
+                <button class="menu-btn" data-action="1v1-ai"> 🤖 1v1 — VS AI</button>
+                <button class="menu-btn" data-action="2v2">   ⚡ 2v2 — TEAM BATTLE</button>
+                <button class="menu-btn" data-action="tournament">🏆 TOURNAMENT</button>
+            </nav>
+            <button class="menu-btn secondary back-btn" data-action="back-menu">← BACK</button>
+        </div>
+    </div>
 
+    <!-- ===== TOURNAMENT SETUP ===== -->
+    <div id="screen-tournament-setup" class="screen">
+        <div class="menu-wrap">
+            <h2 class="section-title">TOURNAMENT SETUP</h2>
+            <div class="setup-form">
+                <label class="setup-label">
+                    CONTESTANTS
+                    <select id="tournament-size" class="setup-select">
+                        <option value="4">4 fighters</option>
+                        <option value="8">8 fighters</option>
+                    </select>
+                </label>
+                <p class="setup-note">You will be seeded as Player 1.<br>All other slots are filled with AI opponents of varying difficulty.</p>
+            </div>
+            <nav class="menu-nav">
+                <button class="menu-btn primary" data-action="start-tournament">▶ START TOURNAMENT</button>
+                <button class="menu-btn secondary" data-action="back-menu">← BACK</button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- ===== BRACKET SCREEN ===== -->
+    <div id="screen-bracket" class="screen">
+        <div class="bracket-wrap">
+            <h2 class="section-title">TOURNAMENT BRACKET</h2>
+            <div id="bracket-container" class="bracket-container"></div>
+            <div class="bracket-actions">
+                <button class="menu-btn primary" id="btn-bracket-start">⚔ FIGHT!</button>
+                <button class="menu-btn secondary" id="btn-bracket-menu">← MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== GAME SCREEN ===== -->
+    <div id="screen-game" class="screen">
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-player" id="hud-p1">
+                <span class="hud-name" id="p1-name">PLAYER 1</span>
+                <div class="stocks-row" id="p1-stocks"></div>
+                <div class="dmg-display" id="p1-dmg">0%</div>
+                <div class="energy-bar-wrap">
+                    <div class="energy-label">ENERGY</div>
+                    <div class="energy-track">
+                        <div class="energy-fill" id="p1-energy"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="hud-center">
+                <div id="round-label">MATCH</div>
+                <div id="mode-tag"></div>
+            </div>
+            <div class="hud-player right" id="hud-p2">
+                <span class="hud-name" id="p2-name">CPU</span>
+                <div class="stocks-row" id="p2-stocks"></div>
+                <div class="dmg-display p2" id="p2-dmg">0%</div>
+                <div class="energy-bar-wrap">
+                    <div class="energy-label">ENERGY</div>
+                    <div class="energy-track">
+                        <div class="energy-fill p2" id="p2-energy"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Phaser canvas injected here -->
+        <div id="canvas-wrap"></div>
+    </div>
+
+    <!-- ===== ROUND RESULT OVERLAY ===== -->
+    <div id="overlay-result" class="overlay hidden">
+        <div class="overlay-box">
+            <h2 id="result-title">KO!</h2>
+            <p id="result-subtitle">Player 1 wins!</p>
+            <div class="overlay-btns">
+                <button class="menu-btn primary" id="btn-continue">REMATCH</button>
+                <button class="menu-btn secondary" id="btn-to-menu">MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TOURNAMENT VICTORY ===== -->
+    <div id="overlay-tournament-win" class="overlay hidden">
+        <div class="overlay-box champ">
+            <div class="trophy-icon">🏆</div>
+            <h1>CHAMPION!</h1>
+            <p id="tournament-win-msg">You conquered the tournament!</p>
+            <button class="menu-btn gold" id="btn-trophy-menu">MAIN MENU</button>
+        </div>
+    </div>
+
+    <!-- ===== FIGHT START FLASH ===== -->
+    <div id="overlay-fight-start" class="overlay hidden">
+        <div class="fight-start-text" id="fight-start-text">FIGHT!</div>
+    </div>
+
+    <!-- ===== PAUSE MENU ===== -->
+    <div id="overlay-pause" class="overlay hidden">
+        <div class="overlay-box" style="border-color: rgba(255,255,255,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8);">
+            <h2 style="color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5);">PAUSED</h2>
+            <div class="overlay-btns" style="flex-direction: column; width: 100%;">
+                <button class="menu-btn primary" id="btn-resume" style="width: 100%; margin-bottom: 8px;">RESUME</button>
+                <button class="menu-btn secondary" id="btn-exit-match" style="width: 100%;">EXIT MATCH</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Shared logic (no canvas API dependency) -->
+<script src="js/config.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/tournament.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/bot.js"></script>
+
+<!-- Phaser-specific rewrites -->
+<script src="js/platform.js"></script>
+<script src="js/stickman.js"></script>
+<script src="js/fighter.js"></script>
+<script src="js/particles.js"></script>
+<script src="js/scenes/BootScene.js"></script>
+<script src="js/scenes/MenuScene.js"></script>
+<script src="js/scenes/GameScene.js"></script>
+<script src="js/main.js"></script>
+</body>
 </html>

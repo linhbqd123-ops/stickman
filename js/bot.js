@@ -1,53 +1,49 @@
 'use strict';
 /* =========================================================
-   BOT — AI controller for CPU fighter
-   Difficulty is a 0–1 float:
-     0.0 = passive rookie
-     0.5 = balanced brawler
-     1.0 = near-perfect champion
-   The Bot drives a Fighter via fighter.setInput() each frame.
+   BOT — Brawlhalla-style AI controller
+   Upgraded to use directional attacks, dodge, and dash.
    ========================================================= */
 
 class Bot {
     /**
-     * @param {Fighter} fighter   — the Fighter this Bot controls
-     * @param {number}  difficulty — 0 to 1
+     * @param {Fighter} fighter
+     * @param {number}  difficulty  0–1
      */
     constructor(fighter, difficulty = 0.5) {
-        this.fighter = fighter;
+        this.fighter    = fighter;
         this.difficulty = Math.max(0, Math.min(1, difficulty));
 
-        // Internal decision state
-        this._thinkTimer = 0;    // ms until next decision recalculation
-        this._action = null; // current planned action object
-        this._jumpPressed = false;
+        this._thinkTimer  = 0;
+        this._action      = null;
+        this._inputBuffer = fighter._emptyInput();
+        this._inputPrev   = fighter._emptyInput();
+
+        // Dodge cooldown to avoid constant dodging
+        this._dodgeCooldown = 0;
     }
 
     setDifficulty(d) {
         this.difficulty = Math.max(0, Math.min(1, d));
     }
 
-    /**
-     * Call every frame before fighter.update().
-     * @param {number}  dt       — delta time in ms
-     * @param {Fighter} opponent — the human/other fighter
-     */
-    update(dt, opponent) {
-        const f = this.fighter;
-        const opp = opponent;
-        const C = CONFIG;
+    /** Call each frame before fighter.update() */
+    update(dt, opponents) {
+        const f   = this.fighter;
+        const opp = opponents[0]; // primary target
+        if (!opp) return;
 
-        if (f.state === 'dead') {
-            f.setInput({ left: false, right: false, jump: false, punch: false, kick: false });
+        if (f.state === 'dead' || f._respawning) {
+            f.setInput(f._emptyInput());
             return;
         }
+
+        if (this._dodgeCooldown > 0) this._dodgeCooldown -= dt;
 
         this._thinkTimer -= dt;
         if (this._thinkTimer <= 0) {
             this._decide(opp);
-            // How quickly the bot reacts: harder bots think faster
-            const baseReact = C.BOT_REACT_MS;
-            this._thinkTimer = baseReact * (1 - this.difficulty * 0.75) + Math.random() * 120;
+            const baseReact    = CONFIG.BOT_REACT_MS;
+            this._thinkTimer   = baseReact * (1 - this.difficulty * 0.75) + Math.random() * 100;
         }
 
         this._applyAction(dt, opp);
@@ -57,54 +53,69 @@ class Bot {
     //  Decision making
     // ----------------------------------------------------------
     _decide(opp) {
-        const f = this.fighter;
-        const C = CONFIG;
-        const dx = opp.x - f.x;
+        const f    = this.fighter;
+        const C    = CONFIG;
+        const dx   = opp.x - f.x;
         const dist = Math.abs(dx);
-        const d = this.difficulty;
+        const d    = this.difficulty;
 
-        // At low difficulty, random chance to do nothing
-        if (Math.random() > 0.3 + d * 0.65) {
+        // Low difficulty: random idle
+        if (Math.random() > 0.28 + d * 0.68) {
             this._action = { type: 'idle' };
             return;
         }
 
-        // Face the opponent
         const desiredFacing = Math.sign(dx) || 1;
+        const closeRange    = 110;
 
-        const punchRange = C.PUNCH_RANGE * 0.88;
-        const kickRange = C.KICK_RANGE * 0.88;
-        const closeRange = (punchRange + kickRange) / 2;
+        // ---- Defensive dodge ----
+        if (d > 0.4 && this._dodgeCooldown <= 0) {
+            const oppAtking = opp.state === 'attack';
+            if (oppAtking && dist < closeRange * 1.3) {
+                const dodgeChance = 0.05 + d * 0.12;
+                if (Math.random() < dodgeChance) {
+                    this._action      = { type: 'dodge', facing: -desiredFacing };
+                    this._dodgeCooldown = 1200;
+                    return;
+                }
+            }
+        }
 
         // ---- At close range: attack ----
         if (dist < closeRange) {
-            // Determine opp vulnerability: mid-air, hurt = bonus
-            const oppVuln = (opp.state === 'hurt' || !opp.onGround) ? 1.2 : 1.0;
-            const atkRoll = Math.random();
-            const atkRate = C.BOT_ATTACK_RATE * (1 + d * 3) * oppVuln;
+            const oppVuln = (!opp.onGround || opp.state === 'hurt') ? 1.3 : 1.0;
+            const atkRate = C.BOT_ATTACK_RATE * (1 + d * 3.5) * oppVuln;
 
-            if (atkRoll < atkRate * 14) {
-                // Vary attacks: harder bots use kick more
-                const useKick = Math.random() < 0.35 + d * 0.25;
-                this._action = { type: useKick ? 'kick' : 'punch', facing: desiredFacing };
+            if (Math.random() < atkRate * 14) {
+                // Choose attack type with direction preference
+                const r = Math.random();
+                let type, dir;
+                if (r < 0.30 + d * 0.15) {
+                    type = 'light'; dir = 'forward';
+                } else if (r < 0.55 + d * 0.10) {
+                    type = 'heavy'; dir = 'forward';
+                } else if (r < 0.70) {
+                    type = 'light'; dir = !opp.onGround ? 'up' : 'neutral';
+                } else if (r < 0.85) {
+                    type = 'heavy'; dir = !opp.onGround ? 'up' : 'neutral';
+                } else {
+                    type = 'light'; dir = 'down';
+                }
+                this._action = { type, dir, facing: desiredFacing };
                 return;
             }
 
-            // Back off a bit to reset if too close (spacing logic)
-            if (dist < 50 && Math.random() < 0.4 + d * 0.3) {
+            // Space out if too close
+            if (dist < 55 && Math.random() < 0.35 + d * 0.25) {
                 this._action = { type: 'retreat', facing: desiredFacing };
                 return;
             }
         }
 
-        // ---- Approach opponent ----
+        // ---- Approach / dash-in ----
         if (dist > closeRange) {
-            // Harder bots dash in aggressively, easier ones meander
-            if (Math.random() < 0.5 + d * 0.45) {
-                this._action = { type: 'approach', facing: desiredFacing };
-            } else {
-                this._action = { type: 'idle' };
-            }
+            const dashIn = d > 0.5 && dist > 200 && Math.random() < 0.25 + d * 0.20;
+            this._action  = { type: dashIn ? 'dash' : 'approach', facing: desiredFacing };
             return;
         }
 
@@ -112,67 +123,78 @@ class Bot {
     }
 
     // ----------------------------------------------------------
-    //  Apply chosen action as input
+    //  Build input and send to fighter
     // ----------------------------------------------------------
     _applyAction(dt, opp) {
-        const f = this.fighter;
-        const C = CONFIG;
+        const f      = this.fighter;
+        const C      = CONFIG;
         const action = this._action || { type: 'idle' };
-        const dx = opp.x - f.x;
-        const d = this.difficulty;
+        const dx     = opp.x - f.x;
+        const d      = this.difficulty;
 
-        let input = { left: false, right: false, jump: false, punch: false, kick: false };
+        // Save previous input for rising-edge
+        this._inputPrev   = Object.assign({}, this._inputBuffer);
+        const inp         = this._emptyInp();
 
         switch (action.type) {
-            case 'approach': {
-                // Move toward opponent
-                if (dx > 0) input.right = true;
-                else input.left = true;
-                // Harder bots sometimes jump toward opponent
-                if (f.onGround && Math.abs(dx) > 160 && Math.random() < 0.015 + d * 0.025) {
-                    input.jump = true;
+            case 'approach':
+                if (dx > 0) inp.right = true; else inp.left = true;
+                // Jump toward airborne opponents
+                if (f.onGround && !opp.onGround && Math.random() < 0.01 + d * 0.02) inp.up = true;
+                break;
+
+            case 'retreat':
+                if (dx > 0) inp.left = true; else inp.right = true;
+                break;
+
+            case 'dash':
+                if (dx > 0) inp.right = true; else inp.left = true;
+                inp.dodge = true;
+                break;
+
+            case 'dodge':
+                if (action.facing > 0) inp.right = true; else inp.left = true;
+                inp.dodge = true;
+                break;
+
+            case 'light':
+                if (action.facing > 0) inp.right = true; else inp.left = true;
+                if (f.atkCooldown <= 0) {
+                    if (action.dir === 'up')       inp.up    = true;
+                    else if (action.dir === 'down') inp.down  = true;
+                    inp.light = true;
                 }
                 break;
-            }
 
-            case 'retreat': {
-                // Move away
-                if (dx > 0) input.left = true;
-                else input.right = true;
+            case 'heavy':
+                if (action.facing > 0) inp.right = true; else inp.left = true;
+                if (f.atkCooldown <= 0) {
+                    if (action.dir === 'up')       inp.up    = true;
+                    else if (action.dir === 'down') inp.down  = true;
+                    inp.heavy = true;
+                }
                 break;
-            }
-
-            case 'punch': {
-                // Face and punch
-                if (action.facing > 0) input.right = true;
-                else input.left = true;
-                if (f.atkCooldown <= 0) input.punch = true;
-                break;
-            }
-
-            case 'kick': {
-                if (action.facing > 0) input.right = true;
-                else input.left = true;
-                if (f.atkCooldown <= 0) input.kick = true;
-                break;
-            }
 
             case 'idle':
             default:
                 break;
         }
 
-        // ---- Defensive jump: dodge incoming attack ----
-        if (d > 0.45 && opp.state === 'punch' && Math.abs(dx) < C.PUNCH_RANGE * 1.1) {
-            if (f.onGround && Math.random() < 0.04 + d * 0.06) {
-                input.jump = true;
-            }
+        // Defensive: avoid walls
+        if (f.x <= C.BLAST_LEFT  + 120) inp.right = true;
+        if (f.x >= C.BLAST_RIGHT - 120) inp.left  = true;
+
+        // Jump recovery if falling under platforms
+        if (!f.onGround && f.vy > 5 && d > 0.3 && Math.random() < 0.01) {
+            inp.up = true;
         }
 
-        // ---- Don't walk off edges / walls ----
-        if (f.x <= C.WALL_LEFT + 20) input.left = false;
-        if (f.x >= C.WALL_RIGHT - 20) input.right = false;
+        this._inputBuffer = inp;
+        f.setInput(inp);
+    }
 
-        f.setInput(input);
+    _emptyInp() {
+        return { left:false, right:false, up:false, down:false,
+                 light:false, heavy:false, dodge:false };
     }
 }
