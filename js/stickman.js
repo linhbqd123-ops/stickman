@@ -162,6 +162,25 @@ class Stickman {
             RL_lower = 0.5;
             leanAngle = 0.5;
             crouchOff = 6;
+        } else if (st === 'wallgrab') {
+            // ── Wall cling: body hugs the surface, arms reach UP-FORWARD to grip the rock
+            //    angle convention: 0 = arm straight down; +PI = arm straight up
+            //    sin(2.75)≈0.38 fwd, cos(2.75)≈-0.93 up  → "hands clutching cliff face"
+            const swing = Math.sin(tick * 1.8) * 0.05;   // subtle sway
+            const breathe = Math.sin(tick * 2.6) * 1.8;    // gentle breathing bob
+            jumpOff = -4 + breathe;
+            leanAngle = 0.18;      // lean forward into the wall
+            crouchOff = 16;        // legs dangle slightly (hanging weight)
+            // Arms — both reaching HIGH and slightly forward, like gripping rock above
+            LA_upper = 2.76 + swing;
+            LA_lower = -0.55;        // forearm curls back (grip / claw shape)
+            RA_upper = 2.54 - swing;
+            RA_lower = -0.45;
+            // Legs — front leg braces against wall, back leg trails freely
+            LL_upper = 0.60;
+            LL_lower = -0.28;        // knee bent, foot pressed to wall
+            RL_upper = -0.38;
+            RL_lower = 0.50;        // trailing leg hangs relaxed
         }
 
         // ---- Skeleton measurements ----

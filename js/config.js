@@ -9,8 +9,9 @@ const CONFIG = Object.freeze({
     HEIGHT: 720,
 
     // Blast zones (losing a stock when crossing these)
+    // BLAST_RIGHT expanded to cover the widest map (1600px ground + 300px margin)
     BLAST_LEFT: -300,
-    BLAST_RIGHT: 1580,
+    BLAST_RIGHT: 1900,
     BLAST_TOP: -750,
     BLAST_BOTTOM: 900,
 
@@ -30,6 +31,14 @@ const CONFIG = Object.freeze({
     DASH_MOMENTUM: 500,     // ms, momentum after dash (0.5s carryover)
     DASH_COOLDOWN: 200,     // ms, anti-spam cooldown between dashes
     FAST_FALL_ACCEL: 1.5,    // multiplier on gravity when holding down in air
+
+    // Wall grab / cliff cling (Brawlhalla-style)
+    WALL_SLIDE_GRAVITY: 0.10,  // slow-fall gravity while clinging to wall
+    WALL_SLIDE_MAX: 1.8,       // max slide-down speed on wall
+    WALL_JUMP_VX: 7.5,         // horizontal push when jumping off wall
+    WALL_JUMP_COOLDOWN: 380,   // ms before can grab wall again after leaving
+    WALL_GRAB_ENTER_VY: 6,     // max falling vy allowed to initiate grab
+    WALL_GRAB_MAX_MS: 2800,    // ms: auto-release if held too long (prevents bot stuck)
 
     // Stock system
     DEFAULT_STOCKS: 3,
@@ -246,7 +255,88 @@ const CONFIG = Object.freeze({
     CAM_MAX_ZOOM: 1.0,
     CAM_LERP: 0.07,
 
-    // Platforms — defined as { x, y, w, h, passThrough }
+    // ---- Default map key ----
+    DEFAULT_MAP: 'naruto',
+
+    // ====================================================================
+    //  MAP DEFINITIONS
+    //  Each map: bgImagePath, platforms[], randomPlatformMovement config
+    //  Platform props: id, x, y, w, h, passThrough, imagePath, imageKey
+    //  imagePath  — relative path loaded in GameScene.preload()
+    //  imageKey   — Phaser texture cache key
+    // ====================================================================
+    MAPS: {
+        naruto: {
+            name: 'Hidden Leaf Village',
+            canvasWidth: 1600,
+            canvasHeight: 720,
+            bgImagePath: 'assets/maps/naruto/bg_main.png',
+            randomPlatformMovement: {
+                enabled: true,
+                minVelocity: -1.8,
+                maxVelocity: 1.8,
+                moveRange: 55,
+            },
+            platforms: [
+                { id: 'n_ground', x: 0, y: 620, w: 1600, h: 300, passThrough: false, imagePath: 'assets/maps/naruto/platforms/plat_ground.png', imageKey: 'plat_naruto_ground' },
+                { id: 'n_left_q', x: 120, y: 480, w: 200, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden' },
+                { id: 'n_left_c', x: 380, y: 360, w: 240, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
+                { id: 'n_center', x: 650, y: 280, w: 300, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_chakra.png', imageKey: 'plat_naruto_chakra' },
+                { id: 'n_right_c', x: 980, y: 360, w: 240, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden' },
+                { id: 'n_right_q', x: 1280, y: 480, w: 200, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_ninja.png', imageKey: 'plat_naruto_ninja' },
+                { id: 'n_left_high', x: 80, y: 200, w: 150, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
+                { id: 'n_right_high', x: 1370, y: 200, w: 150, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
+            ],
+        },
+        dragonball: {
+            name: 'Hyperbolic Time Chamber',
+            canvasWidth: 1600,
+            canvasHeight: 720,
+            bgImagePath: 'assets/maps/dragonball/bg_main.png',
+            randomPlatformMovement: {
+                enabled: true,
+                minVelocity: -2.2,
+                maxVelocity: 2.2,
+                moveRange: 70,
+            },
+            platforms: [
+                { id: 'db_ground', x: 0, y: 620, w: 1600, h: 100, passThrough: false, imagePath: 'assets/maps/dragonball/platforms/plat_ground.png', imageKey: 'plat_db_ground' },
+                { id: 'db_lower_left', x: 100, y: 500, w: 220, h: 18, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_lower_right', x: 1280, y: 500, w: 220, h: 18, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_left_mid', x: 150, y: 390, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_center_low', x: 660, y: 400, w: 280, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png', imageKey: 'plat_db_energy_plat' },
+                { id: 'db_right_mid', x: 1250, y: 390, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_left_high', x: 200, y: 280, w: 180, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_center_high', x: 710, y: 220, w: 180, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png', imageKey: 'plat_db_energy_nexus' },
+                { id: 'db_right_high', x: 1220, y: 280, w: 180, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+            ],
+        },
+        fptsoftware: {
+            name: 'FPT Software Arena',
+            canvasWidth: 1600,
+            canvasHeight: 720,
+            bgImagePath: 'assets/maps/fptsoftware/bg_main.png',
+            randomPlatformMovement: {
+                enabled: true,
+                minVelocity: -1.4,
+                maxVelocity: 1.4,
+                moveRange: 45,
+            },
+            platforms: [
+                { id: 'fpt_ground', x: 0, y: 620, w: 1600, h: 100, passThrough: false, imagePath: 'assets/maps/fptsoftware/platforms/plat_ground.png', imageKey: 'plat_fpt_ground' },
+                { id: 'fpt_lower_left', x: 80, y: 520, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png', imageKey: 'plat_fpt_desk' },
+                { id: 'fpt_lower_right', x: 1320, y: 520, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png', imageKey: 'plat_fpt_desk' },
+                { id: 'fpt_left_shelf', x: 120, y: 410, w: 180, h: 18, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
+                { id: 'fpt_center_shelf', x: 710, y: 430, w: 180, h: 18, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_server_rack.png', imageKey: 'plat_fpt_server' },
+                { id: 'fpt_right_shelf', x: 1300, y: 410, w: 180, h: 18, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
+                { id: 'fpt_left_window', x: 140, y: 320, w: 160, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
+                { id: 'fpt_center_monitor', x: 720, y: 280, w: 160, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_monitor.png', imageKey: 'plat_fpt_monitor' },
+                { id: 'fpt_right_window', x: 1300, y: 320, w: 160, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
+            ],
+        },
+    },
+
+    // Platforms — legacy fallback (used when map key is unknown)
     // Coordinate space: 1280×720, ground at y≈620
     PLATFORMS: [
         // Main ground

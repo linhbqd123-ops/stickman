@@ -1345,3 +1345,140 @@ kbd {
         padding: 8px 12px;
     }
 }
+
+/* ============================================================
+   MAP SELECTION SCREEN
+   ============================================================ */
+.map-select-wrap {
+    max-width: 860px;
+}
+
+.map-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+    .map-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.map-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 28px 16px 22px;
+    background: rgba(0, 229, 255, 0.04);
+    border: 1.5px solid rgba(0, 229, 255, 0.22);
+    border-radius: 14px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s, background 0.18s;
+    user-select: none;
+}
+
+.map-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.map-card:hover {
+    transform: translateY(-4px) scale(1.03);
+    border-color: rgba(0, 229, 255, 0.7);
+    box-shadow: 0 0 28px rgba(0, 229, 255, 0.28), inset 0 0 16px rgba(0, 229, 255, 0.06);
+    background: rgba(0, 229, 255, 0.10);
+}
+
+.map-card:active {
+    transform: translateY(-1px) scale(1.01);
+}
+
+/* Selected state — set by JS when a card was previously picked */
+.map-card.selected {
+    border-color: rgba(0, 229, 255, 0.9);
+    background: rgba(0, 229, 255, 0.13);
+    box-shadow: 0 0 32px rgba(0, 229, 255, 0.35), inset 0 0 20px rgba(0, 229, 255, 0.08);
+}
+
+/* Per-theme hover colours */
+.map-card[data-map="naruto"]:hover,
+.map-card[data-map="naruto"].selected {
+    border-color: rgba(255, 140, 0, 0.8);
+    box-shadow: 0 0 28px rgba(255, 140, 0, 0.3), inset 0 0 16px rgba(255, 140, 0, 0.05);
+    background: rgba(255, 140, 0, 0.08);
+}
+
+.map-card[data-map="dragonball"]:hover,
+.map-card[data-map="dragonball"].selected {
+    border-color: rgba(139, 0, 255, 0.85);
+    box-shadow: 0 0 28px rgba(139, 0, 255, 0.35), inset 0 0 16px rgba(139, 0, 255, 0.06);
+    background: rgba(139, 0, 255, 0.09);
+}
+
+.map-card[data-map="fptsoftware"]:hover,
+.map-card[data-map="fptsoftware"].selected {
+    border-color: rgba(57, 255, 20, 0.8);
+    box-shadow: 0 0 28px rgba(57, 255, 20, 0.28), inset 0 0 16px rgba(57, 255, 20, 0.05);
+    background: rgba(57, 255, 20, 0.07);
+}
+
+.map-card-icon {
+    font-size: 2.6rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 8px rgba(255,255,255,0.25));
+}
+
+.map-card-name {
+    font-family: var(--font-main);
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff;
+}
+
+.map-card-sub {
+    font-family: var(--font-main);
+    font-size: 0.72rem;
+    color: var(--c-muted);
+    letter-spacing: 0.06em;
+    text-align: center;
+}
+
+.map-card-tag {
+    margin-top: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.naruto-tag {
+    background: rgba(255, 140, 0, 0.18);
+    color: #ffa040;
+    border: 1px solid rgba(255, 140, 0, 0.35);
+}
+
+.db-tag {
+    background: rgba(139, 0, 255, 0.18);
+    color: #cc88ff;
+    border: 1px solid rgba(139, 0, 255, 0.35);
+}
+
+.fpt-tag {
+    background: rgba(57, 255, 20, 0.12);
+    color: #88ff66;
+    border: 1px solid rgba(57, 255, 20, 0.30);
+}

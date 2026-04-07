@@ -68,6 +68,22 @@ class PhaserParticleSystem {
         }
     }
 
+    // Wall-scrape dust — sprays outward from the contact point when sliding down
+    spawnWallDust(x, y, wallDir) {
+        for (let i = 0; i < 3; i++) {
+            this.list.push({
+                x: x + wallDir * 12 + (Math.random() - 0.5) * 5,
+                y: y - 35 - Math.random() * 25,
+                vx: -wallDir * (Math.random() * 1.8 + 0.3) + (Math.random() - 0.5) * 0.4,
+                vy: Math.random() * 0.5 - 0.6,
+                life: 14 + (Math.random() * 8 | 0),
+                maxLife: 18,
+                r: Math.random() * 2.5 + 1.0,
+                type: 'dust',
+            });
+        }
+    }
+
     spawnExplosion(x, y) {
         // Fire burst
         for (let i = 0; i < 30; i++) {

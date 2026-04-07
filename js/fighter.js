@@ -82,12 +82,22 @@ class Fighter {
         this._usedHeavyAir = false;   // heavy_air token (reset on land)
         this._wasOnGround = true;
 
+        // ---- Wall grab state ----
+        this.onWall = false;
+        this.wallDir = 0;       // -1 (face left) or 1 (face right) toward wall
+        this.wallPlatform = null;
+        this._wallJumpCooldown = 0;   // ms before can grab wall again
+        this._wallGrabTick = 0;       // ms spent in current wall-grab
+
         // Input snapshot
         this.input = this._emptyInput();
         this._prevInput = this._emptyInput();
 
         // ---- Rendering ----
-        this.renderer = new Stickman(opts.color, opts.shadow, !opts.facingRight);
+        // Always pass flipX=false: facing direction is fully encoded in this.facing,
+        // which _risingEdge / shouldFlip in Stickman.draw() already reads correctly.
+        // Passing !facingRight used to invert slot-1's render, making it face the wrong way.
+        this.renderer = new Stickman(opts.color, opts.shadow, false);
         this.color = opts.color;
         this.shadow = opts.shadow;
         this.tick = 0;
@@ -122,6 +132,7 @@ class Fighter {
         if (this.dashTimer > 0) this.dashTimer -= dt;
         if (this.dashMomentum > 0) this.dashMomentum -= dt;
         if (this.dashCooldown > 0) this.dashCooldown -= dt;
+        if (this._wallJumpCooldown > 0) this._wallJumpCooldown -= dt;
         if (this._dropTimer > 0) {
             this._dropTimer -= dt;
             if (this._dropTimer <= 0) this.droppingThrough = false;
@@ -156,7 +167,7 @@ class Fighter {
             this.state = 'attack';
         } else {
             this.isCrouchAttack = false;
-            this._handleMovement(dt, C);
+            this._handleMovement(dt, C, particles);
             this._handleActions(dt, opponents, particles, C);
         }
 
@@ -174,7 +185,7 @@ class Fighter {
     // =========================================================
     //  Movement
     // =========================================================
-    _handleMovement(dt, C) {
+    _handleMovement(dt, C, particles) {
         const inp = this.input;
         const prev = this._prevInput;
         let moving = false;
@@ -201,6 +212,83 @@ class Fighter {
             }
         } else {
             this.crouchTimer = 0;
+        }
+
+        // ================================================================
+        //  WALL GRAB — cliff-cling mechanic (Brawlhalla style)
+        //  Conditions: airborne, touching a non-passThrough wall, not rising
+        //  too fast, and off wall-jump cooldown.
+        // ================================================================
+        const canWallGrab = !this.onGround &&
+            this.onWall &&
+            this._wallJumpCooldown <= 0 &&
+            this.vy >= -C.WALL_GRAB_ENTER_VY;  // allow grab even slightly upward
+
+        if (canWallGrab) {
+            this.facing = this.wallDir;   // always face toward the wall
+
+            if (this.state !== 'wallgrab') {
+                // First frame of grab
+                this.state = 'wallgrab';
+                this._airJumpUsed = false;    // gift a double-jump for climbing off
+                this._wallGrabTick = 0;
+                if (window.GameEffects) GameEffects.shake(0.25, 60);
+                Audio.playDodge && Audio.playDodge();
+            }
+
+            this._wallGrabTick += dt;
+            this.vx = 0;   // no horizontal drift while clinging
+
+            // ── Auto-release after WALL_GRAB_MAX_MS (prevents bot getting stuck) ──
+            if (this._wallGrabTick >= C.WALL_GRAB_MAX_MS) {
+                this.state = 'airborne';
+                this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN;
+                this._wallGrabTick = 0;
+                return;
+            }
+
+            // ── Wall jump: press UP ──
+            if (this._risingEdge('up')) {
+                const kickDir = -this.wallDir;   // jump AWAY from wall
+                this.vy = C.JUMP_FORCE * 0.92;
+                this.vx = kickDir * C.WALL_JUMP_VX;
+                this.facing = kickDir;
+                this.state = 'airborne';
+                this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN;
+                this._airJumpUsed = false;    // fresh double-jump after wall jump
+                this._wallGrabTick = 0;
+                Audio.playJump && Audio.playJump();
+                if (window.GameEffects) {
+                    GameEffects.shake(0.5, 90);
+                    GameEffects.flash('rgba(200,230,255,0.18)', 120);
+                }
+                if (particles) particles.spawnWallDust(this.x, this.y, this.wallDir);
+                return;
+            }
+
+            // ── Release: press AWAY from wall ──
+            const awayFromWall = (this.wallDir > 0 && inp.left) ||
+                (this.wallDir < 0 && inp.right);
+            if (awayFromWall) {
+                this.state = 'airborne';
+                this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN * 0.4;
+                this._wallGrabTick = 0;
+                return;
+            }
+
+            // ── Scrape dust while sliding down ──
+            if (this.vy > 0.4 && particles && Math.random() < 0.22) {
+                particles.spawnWallDust(this.x, this.y, this.wallDir);
+            }
+
+            this.state = 'wallgrab';
+            return;   // skip normal movement
+        }
+
+        // Not on wall — exit wallgrab if we were in it
+        if (this.state === 'wallgrab') {
+            this.state = 'airborne';
+            this._wallGrabTick = 0;
         }
 
         if (this.onGround) {
@@ -611,6 +699,14 @@ class Fighter {
     //  Physics
     // =========================================================
     _applyPhysics(dt, C) {
+        // ---- Wall grab: slow slide gravity, no horizontal drift ----
+        if (this.state === 'wallgrab') {
+            this.vy = Math.min(this.vy + C.WALL_SLIDE_GRAVITY, C.WALL_SLIDE_MAX);
+            this.vx = 0;
+            this.y += this.vy;
+            return;
+        }
+
         this.vy += C.GRAVITY;
         this.vy = Math.min(this.vy, C.MAX_FALL);
 
@@ -696,7 +792,13 @@ class Fighter {
     //  Utility
     // =========================================================
     _risingEdge(key) {
-        return this.input[key] && !this._prevInput[key];
+        // _netRise_<key> flags are set by the host's GameScene when it detects a
+        // rising edge in a received network input packet, BEFORE the key could be
+        // released again in the same frame (preventing the jump / attack from
+        // being silently eaten by fast key-tap + release between host frames).
+        const nk = '_netRise_' + key;
+        if (this[nk]) { this[nk] = false; return true; }
+        return !!(this.input[key] && !this._prevInput[key]);
     }
 
     reset(x, facingRight, stocks) {
@@ -739,6 +841,11 @@ class Fighter {
         this._usedHeavyAir = false;
         this._wasOnGround = true;
         this.collectedSkill = null;
+        this.onWall = false;
+        this.wallDir = 0;
+        this.wallPlatform = null;
+        this._wallJumpCooldown = 0;
+        this._wallGrabTick = 0;
     }
 
     /** Called by GameScene._render() */

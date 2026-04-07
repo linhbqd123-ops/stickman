@@ -9,7 +9,7 @@ const UI = (() => {
     const $ = id => document.getElementById(id);
 
     // ---- Screen map ----
-    const SCREENS = ['menu', 'mode-select', 'tournament-setup', 'bracket', 'game',
+    const SCREENS = ['menu', 'mode-select', 'map-select', 'tournament-setup', 'bracket', 'game',
         'online-menu', 'online-lobby'];
 
     function showScreen(name) {

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stickman Fighter — Phaser Edition</title>
+    <title>Stickman Fighter</title>
     <meta name="description"
         content="Stickman Fighting game powered by Phaser 3 — WebGL rendering, smooth animation." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -23,7 +23,7 @@
             <div class="menu-wrap">
                 <div class="menu-logo">
                     <h1 class="game-title">STICKMAN<br><span>FIGHTER</span></h1>
-                    <p class="game-sub">PHASER EDITION</p>
+                    <p class="game-sub">- REBORN -</p>
                 </div>
                 <nav class="menu-nav">
                     <button class="menu-btn primary" data-action="play-menu">⚔ PLAY</button>
@@ -32,16 +32,16 @@
                 <div class="controls-hint">
                     <div class="hint-col">
                         <b>Player 1</b><br>
-                        Move: <kbd>A</kbd><kbd>D</kbd> / Jump: <kbd>W</kbd> / Down: <kbd>S</kbd><br>
-                        Light: <kbd>J</kbd> &nbsp; Heavy: <kbd>K</kbd> &nbsp; Dodge/Dash: <kbd>L</kbd><br>
+                        Move: <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>D</kbd><br>
+                        Light: <kbd>J</kbd> &nbsp; Heavy: <kbd>K</kbd><br>Dodge/Dash: <kbd>L</kbd><br>
                         <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate: <kbd>J</kbd>+<kbd>K</kbd>
                             (Energy full)</span>
                     </div>
                     <div class="hint-divider"></div>
                     <div class="hint-col">
                         <b>Player 2</b><br>
-                        Move: <kbd>←</kbd><kbd>→</kbd> / Jump: <kbd>↑</kbd> / Down: <kbd>↓</kbd><br>
-                        Light: <kbd>Num1</kbd> &nbsp; Heavy: <kbd>Num2</kbd> &nbsp; Dodge/Dash: <kbd>Num3</kbd><br>
+                        Move: <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><br>
+                        Light: <kbd>Num1</kbd> &nbsp; Heavy: <kbd>Num2</kbd><br>Dodge/Dash: <kbd>Num3</kbd><br>
                         <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate:
                             <kbd>Num1</kbd>+<kbd>Num2</kbd> (Energy full)</span>
                     </div>
@@ -118,6 +118,34 @@
                     <button class="menu-btn" data-action="tournament">🏆 TOURNAMENT</button>
                 </nav>
                 <button class="menu-btn secondary back-btn" data-action="back-menu">← BACK</button>
+            </div>
+        </div>
+
+        <!-- ===== MAP SELECT ===== -->
+        <div id="screen-map-select" class="screen">
+            <div class="menu-wrap map-select-wrap">
+                <h2 class="section-title">SELECT MAP</h2>
+                <div class="map-grid">
+                    <div class="map-card" data-map="naruto">
+                        <div class="map-card-icon">🍃</div>
+                        <div class="map-card-name">NARUTO</div>
+                        <div class="map-card-sub">Hidden Leaf Village</div>
+                        <div class="map-card-tag naruto-tag">8 Platforms • Moving</div>
+                    </div>
+                    <div class="map-card" data-map="dragonball">
+                        <div class="map-card-icon">⚡</div>
+                        <div class="map-card-name">DRAGON BALL</div>
+                        <div class="map-card-sub">Hyperbolic Time Chamber</div>
+                        <div class="map-card-tag db-tag">9 Platforms • Moving</div>
+                    </div>
+                    <div class="map-card" data-map="fptsoftware">
+                        <div class="map-card-icon">💻</div>
+                        <div class="map-card-name">FPT SOFTWARE</div>
+                        <div class="map-card-sub">Tech Office Arena</div>
+                        <div class="map-card-tag fpt-tag">9 Platforms • Moving</div>
+                    </div>
+                </div>
+                <button class="menu-btn secondary back-btn" data-action="back-map-select">← BACK</button>
             </div>
         </div>
 

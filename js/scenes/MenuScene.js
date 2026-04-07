@@ -12,8 +12,11 @@ class MenuScene extends Phaser.Scene {
     // data.tournament  — Tournament instance to resume (optional)
     // data.showBracket — show bracket immediately (optional)
     init(data) {
-        this._tournament = (data && data.tournament) ? data.tournament : null;
-        this._showBracket = !!(data && data.showBracket); this._backToLobby = !!(data && data.backToLobby);
+        this._tournament   = (data && data.tournament) ? data.tournament : null;
+        this._showBracket  = !!(data && data.showBracket);
+        this._backToLobby  = !!(data && data.backToLobby);
+        this._selectedMap  = (data && data.mapKey) || CONFIG.DEFAULT_MAP;
+        this._pendingMode  = null;
     }
 
     create() {
@@ -26,6 +29,22 @@ class MenuScene extends Phaser.Scene {
         this._rewireBtn('btn-bracket-menu', () => {
             this._tournament = null;
             UI.showScreen('menu');
+        });
+
+        // ---- Map selection cards ----
+        document.querySelectorAll('.map-card').forEach(card => {
+            const clone = card.cloneNode(true);
+            card.replaceWith(clone);
+        });
+        document.querySelectorAll('.map-card').forEach(card => {
+            card.addEventListener('click', () => {
+                Audio.resume && Audio.resume();
+                const mapKey = card.dataset.map;
+                if (mapKey && this._pendingMode) {
+                    this._selectedMap = mapKey;
+                    this._launchGame(this._pendingMode, mapKey);
+                }
+            });
         });
 
         // Wire pause overlay buttons (to be used by GameScene via events).
@@ -116,9 +135,10 @@ class MenuScene extends Phaser.Scene {
         switch (action) {
             case 'play-menu': UI.showScreen('mode-select'); break;
             case 'back-menu': UI.showScreen('menu'); break;
-            case '1v1-pvp': this._launchGame('1v1'); break;
-            case '1v1-ai': this._launchGame('1vAI'); break;
-            case '2v2': this._launchGame('2v2'); break;
+            case 'back-map-select': UI.showScreen('mode-select'); break;
+            case '1v1-pvp': this._showMapSelect('1v1'); break;
+            case '1v1-ai':  this._showMapSelect('1vAI'); break;
+            case '2v2':     this._showMapSelect('2v2'); break;
             case 'tournament': UI.showScreen('tournament-setup'); break;
             case 'start-tournament': this._startTournament(); break;
             // ── Online ──
@@ -131,12 +151,25 @@ class MenuScene extends Phaser.Scene {
     }
 
     // ─────────────────────────────────────────────────────────
+    //  Map Selection
+    // ────────────────────────────────────────────────────────────
+    _showMapSelect(mode) {
+        this._pendingMode = mode;
+        // Highlight previously selected map
+        document.querySelectorAll('.map-card').forEach(card => {
+            card.classList.toggle('selected', card.dataset.map === this._selectedMap);
+        });
+        UI.showScreen('map-select');
+    }
+
+    // ────────────────────────────────────────────────────────────
     //  Offline Game Launch
-    // ─────────────────────────────────────────────────────────
-    _launchGame(mode) {
+    // ────────────────────────────────────────────────────────────
+    _launchGame(mode, mapKey) {
         UI.showScreen('game');
         this.scene.start('GameScene', {
             mode,
+            mapKey: mapKey || this._selectedMap,
             tournament: this._tournament,
             tournamentMatch: null,
         });
@@ -178,6 +211,7 @@ class MenuScene extends Phaser.Scene {
         UI.showScreen('game');
         this.scene.start('GameScene', {
             mode: 'tournament',
+            mapKey: this._selectedMap,
             tournament: this._tournament,
             tournamentMatch: match,
         });

@@ -21,6 +21,7 @@ class GameScene extends Phaser.Scene {
     // =========================================================
     init(data) {
         this.mode = data.mode || '1vAI';
+        this.mapKey = data.mapKey || CONFIG.DEFAULT_MAP;
         this.tournament = data.tournament || null;
         this.tournamentMatch = data.tournamentMatch || null;
         this.online = !!(data.online);
@@ -33,10 +34,44 @@ class GameScene extends Phaser.Scene {
     }
 
     // =========================================================
+    //  preload — load map-specific assets before create()
+    // =========================================================
+    preload() {
+        const mapDef = CONFIG.MAPS && CONFIG.MAPS[this.mapKey];
+        if (!mapDef) return;
+
+        // Background image
+        const bgKey = `bg_${this.mapKey}`;
+        if (mapDef.bgImagePath && !this.textures.exists(bgKey)) {
+            this.load.image(bgKey, mapDef.bgImagePath);
+        }
+
+        // Platform images — load each unique imageKey once
+        const loaded = new Set();
+        for (const plat of mapDef.platforms) {
+            if (plat.imageKey && plat.imagePath && !loaded.has(plat.imageKey)) {
+                if (!this.textures.exists(plat.imageKey)) {
+                    this.load.image(plat.imageKey, plat.imagePath);
+                }
+                loaded.add(plat.imageKey);
+            }
+        }
+    }
+
+    // =========================================================
     //  create
     // =========================================================
     create() {
         const C = CONFIG;
+
+        // ---- Resolve active map definition ----
+        this._mapDef = (CONFIG.MAPS && CONFIG.MAPS[this.mapKey]) || {
+            platforms: CONFIG.PLATFORMS,
+            canvasWidth: C.WIDTH,
+            canvasHeight: C.HEIGHT,
+            bgImagePath: null,
+            randomPlatformMovement: { enabled: false },
+        };
 
         // ---- State ----
         this.fighters = [];
@@ -67,7 +102,7 @@ class GameScene extends Phaser.Scene {
         this._skillItems = [];
 
         // ---- Sub-systems ----
-        this._platforms = new PlatformSystem();
+        this._platforms = new PlatformSystem(this, this.mapKey);
         this._particles = new PhaserParticleSystem(this);
         this._afterImages = [];
 
@@ -140,6 +175,7 @@ class GameScene extends Phaser.Scene {
         this._updateInput();
         this._updateBots(delta);
         this._updateFighters(delta);
+        this._platforms.update(delta);
         this._particles.update(delta);
         this._updateSkillItems(delta);
         this._updateCamera(delta);
@@ -174,6 +210,8 @@ class GameScene extends Phaser.Scene {
     //  shutdown — clean up when scene stops
     // =========================================================
     shutdown() {
+        // Destroy platform image objects
+        if (this._platforms) this._platforms.destroy();
         // Remove game-level event listeners to avoid stacking
         this.game.events.off('game:resume', this._resumeFromPause, this);
         this.game.events.off('game:exit', this._exitToMenu, this);
@@ -204,7 +242,7 @@ class GameScene extends Phaser.Scene {
             const resolvedKeyMap = keyMap || C.KEYS_P1;
             const f = new Fighter({
                 scene: this,
-                id: idx + 1, x, y: C.PLATFORMS[0].y,
+                id: idx + 1, x, y: this._mapDef.platforms[0].y,
                 color: preset.color, shadow: preset.shadow,
                 facingRight, isPlayer,
                 keyMap: resolvedKeyMap,
@@ -305,6 +343,7 @@ class GameScene extends Phaser.Scene {
     _setupCamera() {
         const C = CONFIG;
         const cam = this.cameras.main;
+        const ground = this._mapDef.platforms[0];
 
         // World bounds large enough for blast zones
         cam.setBounds(
@@ -315,10 +354,10 @@ class GameScene extends Phaser.Scene {
         );
 
         // Initial position: center of ground platform
-        const gMid = C.PLATFORMS[0].x + C.PLATFORMS[0].w / 2;
+        const gMid = ground.x + ground.w / 2;
         cam.setZoom(0.75);
         cam.scrollX = gMid - C.WIDTH / (2 * 0.75);
-        cam.scrollY = C.PLATFORMS[0].y - C.HEIGHT * 0.75 / 0.75;
+        cam.scrollY = ground.y - C.HEIGHT * 0.75 / 0.75;
 
         this._camTargetX = cam.scrollX;
         this._camTargetY = cam.scrollY;
@@ -442,10 +481,16 @@ class GameScene extends Phaser.Scene {
                 f.tick += delta / 16.667;
                 if (f.invTimer > 0) f.invTimer -= delta;
                 if (f.hurtTimer > 0) f.hurtTimer -= delta;
-                // Interpolate toward server-authoritative position (smooth between 15Hz snapshots)
+                // Adaptive lerp toward server-authoritative position.
+                // Larger distance → faster catch-up; very close → barely moves
+                // so the fighter doesn't jitter when already accurate.
                 if (f._interpTarget) {
-                    f.x += (f._interpTarget.x - f.x) * 0.3;
-                    f.y += (f._interpTarget.y - f.y) * 0.3;
+                    const dx = f._interpTarget.x - f.x;
+                    const dy = f._interpTarget.y - f.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const t = dist > 120 ? 0.55 : (dist > 30 ? 0.35 : 0.15);
+                    f.x += dx * t;
+                    f.y += dy * t;
                 }
                 continue;
             }
@@ -461,8 +506,9 @@ class GameScene extends Phaser.Scene {
         if (this.matchOver) return;
         if (this._skillItems.length >= 3) return;   // max 3 active at once
 
-        const plats = CONFIG.PLATFORMS;
-        // Prefer floating platforms (index 1+); fall back to ground if there's only one
+        // Use live platform positions (includes moving platforms)
+        const plats = this._platforms.platforms;
+        // Prefer floating platforms (index 1+); fall back to ground if only one
         const pool = plats.length > 1 ? plats.slice(1) : plats;
         const plat = pool[Math.floor(Math.random() * pool.length)];
         const x = plat.x + plat.w * (0.25 + Math.random() * 0.5);
@@ -616,6 +662,7 @@ class GameScene extends Phaser.Scene {
         // Restart GameScene with the same mode (no tournament data needed for rematch)
         this.scene.start('GameScene', {
             mode: this.mode === 'tournament' ? '1vAI' : this.mode,
+            mapKey: this.mapKey,
             tournament: null,
         });
     }
@@ -649,30 +696,49 @@ class GameScene extends Phaser.Scene {
     }
 
     // =========================================================
-    //  Background Texture (created once, displayed as static image)
+    //  Background Texture — image if loaded, else procedural canvas
     // =========================================================
     _buildBackgroundTexture() {
-        const W = CONFIG.WIDTH, H = CONFIG.HEIGHT;
-        const key = 'stageBg';
+        const C = CONFIG;
+        const bgKey = `bg_${this.mapKey}`;
+
+        // ---- Use loaded map image if available ----
+        if (this.textures.exists(bgKey)) {
+            this.add.image(C.WIDTH / 2, C.HEIGHT / 2, bgKey)
+                .setDisplaySize(C.WIDTH, C.HEIGHT)
+                .setDepth(0)
+                .setScrollFactor(0);
+            return;
+        }
+
+        // ---- Procedural fallback (themed per map) ----
+        const W = C.WIDTH, H = C.HEIGHT;
+        const key = `stageBg_${this.mapKey}`;
 
         if (!this.textures.exists(key)) {
-            const ct = this.textures.createCanvas(key, W, H);
+            const ct  = this.textures.createCanvas(key, W, H);
             const ctx = ct.getContext();
 
-            // Gradient sky
+            // Sky gradient — colours vary by map
+            const skyColors = {
+                naruto:      ['#1a0800', '#2a1000', '#1a0500'],
+                dragonball:  ['#080018', '#10002a', '#0d001e'],
+                fptsoftware: ['#000a14', '#001428', '#000814'],
+            };
+            const [c0, c1, c2] = skyColors[this.mapKey] || ['#080818', '#0d0d28', '#120820'];
             const g = ctx.createLinearGradient(0, 0, 0, H);
-            g.addColorStop(0, '#080818');
-            g.addColorStop(0.5, '#0d0d28');
-            g.addColorStop(1, '#120820');
+            g.addColorStop(0,   c0);
+            g.addColorStop(0.5, c1);
+            g.addColorStop(1,   c2);
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, W, H);
 
-            // Stars (deterministic)
+            // Stars
             ctx.fillStyle = 'rgba(255,255,255,0.55)';
             for (let i = 0; i < 80; i++) {
                 const sx = ((i * 173 + 37) % W);
-                const sy = ((i * 97 + 19) % (H * 0.55));
-                const r = (i % 3 === 0) ? 1.2 : 0.6;
+                const sy = ((i * 97  + 19) % (H * 0.55));
+                const r  = (i % 3 === 0) ? 1.2 : 0.6;
                 ctx.globalAlpha = 0.3 + (i % 5) * 0.1;
                 ctx.beginPath();
                 ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -680,23 +746,27 @@ class GameScene extends Phaser.Scene {
             }
             ctx.globalAlpha = 1;
 
-            // City silhouette
+            // City silhouette — colour matches map theme
+            const silColors = {
+                naruto:      'rgba(30,12,0,0.8)',
+                dragonball:  'rgba(12,0,28,0.8)',
+                fptsoftware: 'rgba(0,10,20,0.8)',
+            };
             const buildings = [
-                { x: 0, w: 70, h: 220 }, { x: 80, w: 45, h: 170 }, { x: 135, w: 90, h: 270 },
-                { x: 235, w: 60, h: 200 }, { x: 305, w: 38, h: 145 }, { x: 355, w: 75, h: 235 },
-                { x: 450, w: 55, h: 185 }, { x: 515, w: 95, h: 280 }, { x: 625, w: 50, h: 160 },
-                { x: 685, w: 70, h: 225 }, { x: 770, w: 55, h: 195 }, { x: 840, w: 88, h: 250 },
-                { x: 940, w: 60, h: 175 }, { x: 1010, w: 50, h: 155 }, { x: 1075, w: 80, h: 240 },
+                { x: 0,    w: 70, h: 220 }, { x: 80,   w: 45, h: 170 }, { x: 135,  w: 90, h: 270 },
+                { x: 235,  w: 60, h: 200 }, { x: 305,  w: 38, h: 145 }, { x: 355,  w: 75, h: 235 },
+                { x: 450,  w: 55, h: 185 }, { x: 515,  w: 95, h: 280 }, { x: 625,  w: 50, h: 160 },
+                { x: 685,  w: 70, h: 225 }, { x: 770,  w: 55, h: 195 }, { x: 840,  w: 88, h: 250 },
+                { x: 940,  w: 60, h: 175 }, { x: 1010, w: 50, h: 155 }, { x: 1075, w: 80, h: 240 },
                 { x: 1165, w: 55, h: 180 }, { x: 1230, w: 50, h: 160 },
             ];
-            const gy = CONFIG.PLATFORMS[0].y;
-            ctx.fillStyle = 'rgba(18,18,45,0.8)';
+            const gy = this._mapDef.platforms[0].y;
+            ctx.fillStyle = silColors[this.mapKey] || 'rgba(18,18,45,0.8)';
             buildings.forEach(b => ctx.fillRect(b.x, gy - b.h, b.w, b.h));
 
             ct.refresh();
         }
 
-        // Display as screen-fixed image (setScrollFactor(0) = not affected by camera)
         this.add.image(0, 0, key).setOrigin(0, 0).setDepth(0).setScrollFactor(0);
     }
 
@@ -712,6 +782,9 @@ class GameScene extends Phaser.Scene {
 
         // Platforms
         this._platforms.draw(this._platGfx);
+
+        // Wall-grab contact glow (rendered over platforms, behind fighters)
+        this._renderWallGrabFX(this._platGfx);
 
         // Skill items (glowing orbs on platforms)
         this._renderSkillItems();
@@ -745,6 +818,76 @@ class GameScene extends Phaser.Scene {
     }
 
     // =========================================================
+    //  Wall-grab contact glow — pulsing highlight on the platform wall
+    //  face and a bright halo at the grip point for each clinging fighter.
+    // =========================================================
+    _renderWallGrabFX(g) {
+        this._wallGrabPulse = ((this._wallGrabPulse || 0) + 0.055) % (Math.PI * 2);
+        const pt = this._wallGrabPulse;
+
+        for (const f of this.fighters) {
+            if (f.state !== 'wallgrab' || !f.wallPlatform) continue;
+
+            const plat   = f.wallPlatform;
+            const isLeft = (f.wallDir > 0);  // fighter on the LEFT-SIDE face of platform
+            const wallX  = isLeft ? plat.x : plat.x + plat.w;
+
+            // Vertical contact band: centre on fighter body height, not feet
+            const contactY = Phaser.Math.Clamp(
+                f.y - 50, plat.y + 6, plat.y + plat.h - 6
+            );
+
+            // Fighter color as integer
+            const fc = parseInt(f.color.replace('#', ''), 16);
+            const pulse = 0.30 + Math.sin(pt * 3.5) * 0.20;
+
+            // ── Glowing strip along the full height of the wall face ──
+            g.fillStyle(fc, pulse * 0.22);
+            g.fillRect(
+                isLeft ? plat.x - 5 : plat.x + plat.w - 3,
+                plat.y,
+                8, plat.h
+            );
+
+            // ── Bright edge line on the wall surface ──
+            g.lineStyle(2, fc, pulse * 0.75);
+            g.beginPath();
+            g.moveTo(wallX, plat.y);
+            g.lineTo(wallX, plat.y + plat.h);
+            g.strokePath();
+
+            // ── Grip-point halo at hand contact height ──
+            const haloR = 14 + Math.sin(pt * 4.5) * 3;
+            g.lineStyle(2.5, fc, pulse * 0.85);
+            g.beginPath();
+            g.arc(wallX, contactY - 18, haloR, 0, Math.PI * 2);
+            g.strokePath();
+            g.fillStyle(fc, pulse * 0.45);
+            g.fillCircle(wallX, contactY - 18, 5);
+
+            // ── Secondary grip halo (lower hand) ──
+            g.lineStyle(1.8, fc, pulse * 0.55);
+            g.beginPath();
+            g.arc(wallX, contactY + 8, haloR * 0.68, 0, Math.PI * 2);
+            g.strokePath();
+
+            // ── Crack-line sparks: tiny radiating lines from grip point ──
+            const sparkCount = 5;
+            g.lineStyle(1, fc, pulse * 0.40);
+            for (let si = 0; si < sparkCount; si++) {
+                const a   = (si / sparkCount) * Math.PI * 2 + pt;
+                const sr  = 16 + Math.sin(pt * 6 + si) * 4;
+                const ex  = wallX + Math.cos(a) * sr;
+                const ey  = (contactY - 18) + Math.sin(a) * sr;
+                g.beginPath();
+                g.moveTo(wallX, contactY - 18);
+                g.lineTo(ex, ey);
+                g.strokePath();
+            }
+        }
+    }
+
+    // =========================================================
     //  Online — callbacks, snapshot, input relay
     // =========================================================
 
@@ -754,7 +897,15 @@ class GameScene extends Phaser.Scene {
             // Host receives input events from every client
             Net.onInputReceived = (pid, input) => {
                 const f = this.fighters.find(f => f._netPlayerId === pid);
-                if (f && !f._isLocalNet) f.setInput(input);
+                if (!f || f._isLocalNet) return;
+                // Detect rising edges at receipt time and store them on the fighter.
+                // This prevents jump/attack inputs from being silently dropped when
+                // a key-down + key-up both arrive between the same two host frames
+                // (setInput would overwrite _prevInput and erase the rising edge).
+                for (const k of ['up', 'light', 'heavy', 'dodge']) {
+                    if (!f.input[k] && input[k]) f['_netRise_' + k] = true;
+                }
+                f.setInput(input);
             };
         } else {
             // Client receives authoritative state from host
@@ -826,18 +977,31 @@ class GameScene extends Phaser.Scene {
             if (!f) continue;
 
             if (f._isLocalNet) {
-                // Soft-correct: snap only if positional drift is excessive (>80 px).
-                const snapX = snap.x !== undefined ? snap.x : f.x;
-                const snapY = snap.y !== undefined ? snap.y : f.y;
-                const drift = Math.abs(f.x - snapX) + Math.abs(f.y - snapY);
-                if (drift > 80) {
-                    f.x = snapX; f.y = snapY;
-                    if (snap.vx !== undefined) f.vx = snap.vx;
-                    if (snap.vy !== undefined) f.vy = snap.vy;
-                }
+                // Always sync authoritative combat values.
                 if (snap.dmg !== undefined) f.damage = snap.dmg;
                 if (snap.stk !== undefined) f.stocks = snap.stk;
                 if (snap.eng !== undefined) f.energy = snap.eng;
+
+                // Hard-sync position + velocity only when truly necessary:
+                //  • host says we were hit  (state='hurt' or hurtTimer > 0)
+                //  • host says we respawned (re flag set)
+                //  • enormous drift         (>250 px, e.g. blast-zone correction)
+                // Otherwise trust local physics so jumps/movement feel instant
+                // and double-jumps are never cancelled by a stale server position.
+                const snapX = snap.x !== undefined ? snap.x : f.x;
+                const snapY = snap.y !== undefined ? snap.y : f.y;
+                const drift = Math.abs(f.x - snapX) + Math.abs(f.y - snapY);
+                const isHurt = (snap.st === 'hurt') ||
+                    (snap.hrt !== undefined && snap.hrt > 0);
+                const isDead = !!(snap.re);
+                if (isHurt || isDead || drift > 250) {
+                    f.x = snapX; f.y = snapY;
+                    if (snap.vx !== undefined) f.vx = snap.vx;
+                    if (snap.vy !== undefined) f.vy = snap.vy;
+                    if (snap.st !== undefined) f.state = snap.st;
+                    if (snap.hrt !== undefined) f.hurtTimer = snap.hrt;
+                    if (snap.inv !== undefined) f.invTimer = snap.inv;
+                }
             } else {
                 // Set interpolation target for position (smooth between 15Hz snapshots)
                 if (snap.x !== undefined || snap.y !== undefined) {
