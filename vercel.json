@@ -1,7 +1,6 @@
 {
     "version": 2,
     "buildCommand": "npm install && npm run build",
-    "outputDirectory": ".",
     "builds": [
         {
             "src": "api/**/*.js",
@@ -14,12 +13,8 @@
             "dest": "/api/$1"
         },
         {
-            "src": "/dist/(.*)",
-            "dest": "/dist/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/$1"
+            "src": "/.*",
+            "dest": "/"
         }
     ]
 }
