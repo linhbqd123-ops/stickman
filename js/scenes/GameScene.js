@@ -29,6 +29,7 @@ class GameScene extends Phaser.Scene {
         this._latestSnapshot = null;
         this._netFrameTick = 0;
         this._lastSentInput = null;
+        this._prevSnapshot = null;  // delta compression baseline
     }
 
     // =========================================================
@@ -147,9 +148,12 @@ class GameScene extends Phaser.Scene {
         // ---- Online networking ----
         if (this.online) {
             if (Net.role === 'host') {
-                // Broadcast authoritative state to all clients at ~30 Hz
+                // Broadcast authoritative state to all clients at ~15 Hz (every 4 frames @ 60 FPS)
                 this._netFrameTick++;
-                if (this._netFrameTick % 2 === 0) Net.broadcastState(this._makeSnapshot());
+                if (this._netFrameTick % 4 === 0) {
+                    const snap = this._makeSnapshot();
+                    if (snap) Net.broadcastState(snap); // null = nothing changed, skip send
+                }
             } else if (Net.role === 'client') {
                 // Send local input to host (change-only throttle)
                 this._sendLocalInput();
@@ -438,6 +442,11 @@ class GameScene extends Phaser.Scene {
                 f.tick += delta / 16.667;
                 if (f.invTimer > 0) f.invTimer -= delta;
                 if (f.hurtTimer > 0) f.hurtTimer -= delta;
+                // Interpolate toward server-authoritative position (smooth between 15Hz snapshots)
+                if (f._interpTarget) {
+                    f.x += (f._interpTarget.x - f.x) * 0.3;
+                    f.y += (f._interpTarget.y - f.y) * 0.3;
+                }
                 continue;
             }
             const opponents = this.fighters.filter(o => o !== f);
@@ -761,27 +770,56 @@ class GameScene extends Phaser.Scene {
 
     /** Serialize all fighters into a compact snapshot for broadcast. */
     _makeSnapshot() {
-        return this.fighters.map(f => ({
+        const now = this.fighters.map(f => ({
             npid: f._netPlayerId,
-            x: f.x,
-            y: f.y,
-            vx: f.vx,
-            vy: f.vy,
-            facing: f.facing,
-            state: f.state,
-            attackType: f.attackType,
-            damage: f.damage,
-            stocks: f.stocks,
-            energy: f.energy,
-            tick: f.tick,
-            invTimer: f.invTimer,
-            hurtTimer: f.hurtTimer,
-            respawning: !!f._respawning,
-            collectedSkill: f.collectedSkill || null,
+            x: Math.round(f.x),
+            y: Math.round(f.y),
+            vx: +f.vx.toFixed(2),
+            vy: +f.vy.toFixed(2),
+            fa: f.facing,
+            st: f.state,
+            atk: f.attackType,
+            dmg: Math.round(f.damage),
+            stk: f.stocks,
+            eng: Math.round(f.energy),
+            tk: Math.round(f.tick),
+            inv: f.invTimer > 0 ? Math.round(f.invTimer) : 0,
+            hrt: f.hurtTimer > 0 ? Math.round(f.hurtTimer) : 0,
+            re: f._respawning ? 1 : 0,
+            sk: f.collectedSkill || null,
         }));
+
+        const prev = this._prevSnapshot;
+        this._prevSnapshot = now;
+
+        // First frame — always send full snapshot
+        if (!prev) return now;
+
+        // Subsequent frames — delta: only include fighters with changed fields
+        const delta = [];
+        for (let i = 0; i < now.length; i++) {
+            const n = now[i], p = prev[i];
+            if (!p || n.npid !== p.npid) { delta.push(n); continue; }
+
+            const d = { npid: n.npid };
+            let changed = false;
+            const chk = (k, threshold = 0) => {
+                if (threshold ? Math.abs(n[k] - p[k]) > threshold : n[k] !== p[k]) { d[k] = n[k]; changed = true; }
+            };
+            chk('x', 1); chk('y', 1); chk('vx', 0.1); chk('vy', 0.1);
+            chk('fa'); chk('st'); chk('atk'); chk('dmg'); chk('stk'); chk('eng');
+            chk('tk', 1);
+            // Always include timers if either prev or now is non-zero
+            if (n.inv > 0 || p.inv > 0) { d.inv = n.inv; changed = true; }
+            if (n.hrt > 0 || p.hrt > 0) { d.hrt = n.hrt; changed = true; }
+            chk('re'); chk('sk');
+
+            if (changed) delta.push(d);
+        }
+        return delta.length > 0 ? delta : null; // null = nothing changed, skip broadcast
     }
 
-    /** Apply a server snapshot to local fighter objects (client only). */
+    /** Apply a server snapshot (may be full or delta) to local fighter objects (client only). */
     _applySnapshot(snapshots) {
         for (const snap of snapshots) {
             const f = this.fighters.find(f => f._netPlayerId === snap.npid);
@@ -789,32 +827,38 @@ class GameScene extends Phaser.Scene {
 
             if (f._isLocalNet) {
                 // Soft-correct: snap only if positional drift is excessive (>80 px).
-                // Always sync authoritative game values (damage, stocks, energy).
-                const drift = Math.abs(f.x - snap.x) + Math.abs(f.y - snap.y);
+                const snapX = snap.x !== undefined ? snap.x : f.x;
+                const snapY = snap.y !== undefined ? snap.y : f.y;
+                const drift = Math.abs(f.x - snapX) + Math.abs(f.y - snapY);
                 if (drift > 80) {
-                    f.x = snap.x; f.y = snap.y;
-                    f.vx = snap.vx; f.vy = snap.vy;
+                    f.x = snapX; f.y = snapY;
+                    if (snap.vx !== undefined) f.vx = snap.vx;
+                    if (snap.vy !== undefined) f.vy = snap.vy;
                 }
-                f.damage = snap.damage;
-                f.stocks = snap.stocks;
-                f.energy = snap.energy;
+                if (snap.dmg !== undefined) f.damage = snap.dmg;
+                if (snap.stk !== undefined) f.stocks = snap.stk;
+                if (snap.eng !== undefined) f.energy = snap.eng;
             } else {
-                // Hard override for remote fighters — server is authoritative
-                f.x = snap.x;
-                f.y = snap.y;
-                f.vx = snap.vx;
-                f.vy = snap.vy;
-                f.facing = snap.facing;
-                f.state = snap.state;
-                f.attackType = snap.attackType;
-                f.damage = snap.damage;
-                f.stocks = snap.stocks;
-                f.energy = snap.energy;
-                f.tick = snap.tick;
-                f.invTimer = snap.invTimer;
-                f.hurtTimer = snap.hurtTimer;
-                f._respawning = snap.respawning;
-                f.collectedSkill = snap.collectedSkill;
+                // Set interpolation target for position (smooth between 15Hz snapshots)
+                if (snap.x !== undefined || snap.y !== undefined) {
+                    f._interpTarget = f._interpTarget || { x: f.x, y: f.y };
+                    if (snap.x !== undefined) f._interpTarget.x = snap.x;
+                    if (snap.y !== undefined) f._interpTarget.y = snap.y;
+                }
+                // Hard-sync all other authoritative state
+                if (snap.vx !== undefined) f.vx = snap.vx;
+                if (snap.vy !== undefined) f.vy = snap.vy;
+                if (snap.fa !== undefined) f.facing = snap.fa;
+                if (snap.st !== undefined) f.state = snap.st;
+                if (snap.atk !== undefined) f.attackType = snap.atk;
+                if (snap.dmg !== undefined) f.damage = snap.dmg;
+                if (snap.stk !== undefined) f.stocks = snap.stk;
+                if (snap.eng !== undefined) f.energy = snap.eng;
+                if (snap.tk !== undefined) f.tick = snap.tk;
+                if (snap.inv !== undefined) f.invTimer = snap.inv;
+                if (snap.hrt !== undefined) f.hurtTimer = snap.hrt;
+                if (snap.re !== undefined) f._respawning = !!snap.re;
+                if (snap.sk !== undefined) f.collectedSkill = snap.sk;
             }
         }
     }
