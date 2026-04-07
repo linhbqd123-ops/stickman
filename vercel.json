@@ -1,12 +1,6 @@
 {
     "version": 2,
-    "buildCommand": "npm install && npm run build",
-    "builds": [
-        {
-            "src": "api/**/*.js",
-            "use": "@vercel/node"
-        }
-    ],
+    "buildCommand": "npm run build",
     "routes": [
         {
             "src": "/api/(.*)",
@@ -14,7 +8,7 @@
         },
         {
             "src": "/.*",
-            "dest": "/"
+            "dest": "/index.html"
         }
     ]
 }
