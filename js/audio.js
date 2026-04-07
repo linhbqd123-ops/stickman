@@ -52,14 +52,17 @@ const Audio = (() => {
         src.start(t); src.stop(t + dur + 0.01);
     }
 
-    function playPunch()  { noiseBurst(0.55,0.07); burst({type:'sawtooth',freqStart:200,freqEnd:70,duration:0.09,gain:0.25}); }
-    function playKick()   { noiseBurst(0.7,0.10);  burst({type:'triangle',freqStart:130,freqEnd:40,duration:0.13,gain:0.40}); }
-    function playHurt()   { burst({type:'square',freqStart:320,freqEnd:95,duration:0.14,gain:0.20}); }
-    function playJump()   { burst({type:'sine',freqStart:190,freqEnd:370,duration:0.11,gain:0.13}); }
-    function playKO()     { [0,0.10,0.22].forEach((d,i)=>{ noiseBurst(0.6,0.12,d); burst({type:'sawtooth',freqStart:220-i*35,freqEnd:45,duration:0.18,gain:0.35,when:d}); }); }
-    function playRoundStart() { burst({type:'sine',freqStart:440,freqEnd:660,duration:0.15,gain:0.2}); burst({type:'sine',freqStart:660,duration:0.25,gain:0.25,when:0.16}); }
-    function playDodge()  { burst({type:'sine',freqStart:600,freqEnd:900,duration:0.07,gain:0.08}); }
-    function playDash()   { noiseBurst(0.3,0.05); burst({type:'sawtooth',freqStart:300,freqEnd:150,duration:0.08,gain:0.15}); }
+    function playPunch() { noiseBurst(0.55, 0.07); burst({ type: 'sawtooth', freqStart: 200, freqEnd: 70, duration: 0.09, gain: 0.25 }); }
+    function playKick() { noiseBurst(0.7, 0.10); burst({ type: 'triangle', freqStart: 130, freqEnd: 40, duration: 0.13, gain: 0.40 }); }
+    function playHurt() { burst({ type: 'square', freqStart: 320, freqEnd: 95, duration: 0.14, gain: 0.20 }); }
+    function playJump() { burst({ type: 'sine', freqStart: 190, freqEnd: 370, duration: 0.11, gain: 0.13 }); }
+    function playKO() { [0, 0.10, 0.22].forEach((d, i) => { noiseBurst(0.6, 0.12, d); burst({ type: 'sawtooth', freqStart: 220 - i * 35, freqEnd: 45, duration: 0.18, gain: 0.35, when: d }); }); }
+    function playRoundStart() { burst({ type: 'sine', freqStart: 440, freqEnd: 660, duration: 0.15, gain: 0.2 }); burst({ type: 'sine', freqStart: 660, duration: 0.25, gain: 0.25, when: 0.16 }); }
+    function playDodge() { burst({ type: 'sine', freqStart: 600, freqEnd: 900, duration: 0.07, gain: 0.08 }); }
+    function playDash() { noiseBurst(0.3, 0.05); burst({ type: 'sawtooth', freqStart: 300, freqEnd: 150, duration: 0.08, gain: 0.15 }); }
 
     return { init, resume, playPunch, playKick, playHurt, playJump, playKO, playRoundStart, playDodge, playDash };
 })();
+
+// Expose Audio globally for ESM modules
+window.Audio = Audio;

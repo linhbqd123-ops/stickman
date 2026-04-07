@@ -13,29 +13,29 @@ class PlatformSystem {
     // ---- Collision (unchanged) ----
     resolve(entity) {
         const halfW = entity.width || 20;
-        entity.onGround   = false;
+        entity.onGround = false;
         entity.onPlatform = null;
 
         for (const plat of this.platforms) {
-            const prevY  = entity.y - entity.vy;
+            const prevY = entity.y - entity.vy;
             const withinX = entity.x + halfW > plat.x && entity.x - halfW < plat.x + plat.w;
             if (!withinX) continue;
 
             if (plat.passThrough) {
-                if (entity.vy < 0)                     continue;
-                if (entity.droppingThrough)             continue;
-                if (prevY > plat.y + 2)                 continue;
+                if (entity.vy < 0) continue;
+                if (entity.droppingThrough) continue;
+                if (prevY > plat.y + 2) continue;
                 if (entity.y >= plat.y && prevY <= plat.y + 4) {
-                    entity.y          = plat.y;
-                    entity.vy         = 0;
-                    entity.onGround   = true;
+                    entity.y = plat.y;
+                    entity.vy = 0;
+                    entity.onGround = true;
                     entity.onPlatform = plat;
                 }
             } else {
                 if (entity.vy >= 0 && entity.y >= plat.y && prevY <= plat.y + 4) {
-                    entity.y          = plat.y;
-                    entity.vy         = 0;
-                    entity.onGround   = true;
+                    entity.y = plat.y;
+                    entity.vy = 0;
+                    entity.onGround = true;
                     entity.onPlatform = plat;
                 }
             }
@@ -67,14 +67,14 @@ class PlatformSystem {
         // Neon top line
         g.lineStyle(2, 0x00e5ff, 0.65);
         g.beginPath();
-        g.moveTo(p.x,       p.y);
+        g.moveTo(p.x, p.y);
         g.lineTo(p.x + p.w, p.y);
         g.strokePath();
 
         // Soft glow under the line (second pass, wider & dimmer)
         g.lineStyle(6, 0x00b4cc, 0.18);
         g.beginPath();
-        g.moveTo(p.x,       p.y);
+        g.moveTo(p.x, p.y);
         g.lineTo(p.x + p.w, p.y);
         g.strokePath();
     }
@@ -93,15 +93,17 @@ class PlatformSystem {
         // Inner highlight line along the top edge
         g.lineStyle(1, 0x40e8ff, 0.35);
         g.beginPath();
-        g.moveTo(p.x + rx,       p.y + 1);
+        g.moveTo(p.x + rx, p.y + 1);
         g.lineTo(p.x + p.w - rx, p.y + 1);
         g.strokePath();
 
         // Underside glow
         g.lineStyle(4, 0x00e5ff, 0.18);
         g.beginPath();
-        g.moveTo(p.x + rx,       p.y + p.h);
+        g.moveTo(p.x + rx, p.y + p.h);
         g.lineTo(p.x + p.w - rx, p.y + p.h);
         g.strokePath();
     }
 }
+
+window.PlatformSystem = PlatformSystem;

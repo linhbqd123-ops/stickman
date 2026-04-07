@@ -13,7 +13,7 @@
 class PhaserParticleSystem {
     constructor(scene) {
         this._scene = scene;   // Phaser.Scene
-        this.list   = [];
+        this.list = [];
     }
 
     // ---- Spawn methods (identical API to original ParticleSystem) ----
@@ -22,18 +22,18 @@ class PhaserParticleSystem {
         const C = CONFIG;
         for (let i = 0; i < C.BLOOD_COUNT; i++) {
             const spread = (Math.random() - 0.5) * Math.PI;
-            const angle  = (dirX > 0 ? 0 : Math.PI) + spread - Math.PI * 0.4;
-            const speed  = Math.random() * C.BLOOD_SPEED + 1.5;
+            const angle = (dirX > 0 ? 0 : Math.PI) + spread - Math.PI * 0.4;
+            const speed = Math.random() * C.BLOOD_SPEED + 1.5;
             this.list.push({
                 x, y,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed - 2.5,
-                life:    C.BLOOD_LIFE + (Math.random() * 10 | 0),
+                life: C.BLOOD_LIFE + (Math.random() * 10 | 0),
                 maxLife: C.BLOOD_LIFE,
-                r:     Math.random() * 3.5 + 1.5,
-                hue:   Math.random() * 20,
+                r: Math.random() * 3.5 + 1.5,
+                hue: Math.random() * 20,
                 light: 35 + (Math.random() * 20 | 0),
-                type:  'blood',
+                type: 'blood',
             });
         }
     }
@@ -46,10 +46,10 @@ class PhaserParticleSystem {
                 x, y,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed,
-                life:    12 + (Math.random() * 8 | 0),
+                life: 12 + (Math.random() * 8 | 0),
                 maxLife: 16,
-                r:     Math.random() * 2.5 + 0.8,
-                type:  'spark',
+                r: Math.random() * 2.5 + 0.8,
+                type: 'spark',
             });
         }
     }
@@ -60,10 +60,10 @@ class PhaserParticleSystem {
                 x: x + (Math.random() - 0.5) * 20, y,
                 vx: (Math.random() - 0.5) * 2.5,
                 vy: -Math.random() * 1.5 - 0.5,
-                life:    18 + (Math.random() * 10 | 0),
+                life: 18 + (Math.random() * 10 | 0),
                 maxLife: 22,
-                r:     Math.random() * 5 + 3,
-                type:  'dust',
+                r: Math.random() * 5 + 3,
+                type: 'dust',
             });
         }
     }
@@ -78,11 +78,11 @@ class PhaserParticleSystem {
                 y: y + (Math.random() - 0.5) * 20,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed - 3,
-                life:    28 + (Math.random() * 20 | 0),
+                life: 28 + (Math.random() * 20 | 0),
                 maxLife: 40,
-                r:     Math.random() * 5 + 2,
-                type:  'explosion',
-                hue:   Math.random() * 60,
+                r: Math.random() * 5 + 2,
+                type: 'explosion',
+                hue: Math.random() * 60,
             });
         }
         // Shockwave rings (delayed)
@@ -90,16 +90,16 @@ class PhaserParticleSystem {
             this._scheduleTimer(ring * 60, () => {
                 this.list.push({
                     x, y,
-                    type:      'shockwave',
-                    radius:    8  + ring * 12,
+                    type: 'shockwave',
+                    radius: 8 + ring * 12,
                     maxRadius: 140 + ring * 50,
-                    life:      280 + ring * 60,
-                    maxLife:   280 + ring * 60,
-                    width:     4 - ring * 0.5,
+                    life: 280 + ring * 60,
+                    maxLife: 280 + ring * 60,
+                    width: 4 - ring * 0.5,
                     r: 0,           // unused but required by update loop guard
                     vx: 0, vy: 0,
                     color_r: 255, color_g: 200 - ring * 40, color_b: Math.max(0, 50 - ring * 10),
-                    alpha0:   0.85 - ring * 0.18,
+                    alpha0: 0.85 - ring * 0.18,
                 });
             });
         }
@@ -111,15 +111,15 @@ class PhaserParticleSystem {
                 const lifetime = 200 + ring * 100;
                 this.list.push({
                     x, y,
-                    type:      'shockwave',
-                    radius:    5  + ring * 8,
+                    type: 'shockwave',
+                    radius: 5 + ring * 8,
                     maxRadius: (60 + ring * 40) * size,
-                    life:      lifetime,
-                    maxLife:   lifetime,
-                    width:     3 + ring * 1.5,
+                    life: lifetime,
+                    maxLife: lifetime,
+                    width: 3 + ring * 1.5,
                     r: 0, vx: 0, vy: 0,
                     color_r: 255, color_g: 200, color_b: 100,
-                    alpha0:   0.8 - ring * 0.3,
+                    alpha0: 0.8 - ring * 0.3,
                 });
             });
         }
@@ -139,8 +139,8 @@ class PhaserParticleSystem {
         for (let i = this.list.length - 1; i >= 0; i--) {
             const p = this.list[i];
             if (p.type !== 'shockwave') {
-                p.x  += p.vx;
-                p.y  += p.vy;
+                p.x += p.vx;
+                p.y += p.vy;
                 p.vy += 0.28;
                 p.vx *= 0.97;
             }
@@ -155,10 +155,10 @@ class PhaserParticleSystem {
             const alpha = p.life / p.maxLife;
 
             if (p.type === 'shockwave') {
-                const progress      = 1 - alpha;
+                const progress = 1 - alpha;
                 const currentRadius = p.radius + (p.maxRadius - p.radius) * progress;
-                const lineAlpha     = alpha * 0.7 * p.alpha0;
-                const color         = (p.color_r << 16) | (p.color_g << 8) | p.color_b;
+                const lineAlpha = alpha * 0.7 * p.alpha0;
+                const color = (p.color_r << 16) | (p.color_g << 8) | p.color_b;
                 g.lineStyle(p.width * (1 - progress * 0.5), color, lineAlpha);
                 g.beginPath();
                 g.arc(p.x, p.y, currentRadius, 0, Math.PI * 2);
@@ -169,25 +169,25 @@ class PhaserParticleSystem {
                 if (p.type === 'blood') {
                     // hsl-like: red/dark-red
                     const lf = p.light / 100;
-                    const r  = Math.round(lf * 180 + p.hue * 2);
+                    const r = Math.round(lf * 180 + p.hue * 2);
                     const gr = Math.round(lf * 20);
-                    const b  = Math.round(lf * 20);
+                    const b = Math.round(lf * 20);
                     const color = ((r & 0xff) << 16) | ((gr & 0xff) << 8) | (b & 0xff);
                     g.fillStyle(color, a);
                     g.fillCircle(p.x, p.y, p.r);
 
                 } else if (p.type === 'spark') {
-                    const l   = 65 + (1 - alpha) * 25;
+                    const l = 65 + (1 - alpha) * 25;
                     const lf2 = l / 100;
-                    const rv  = Math.min(255, Math.round(lf2 * 255));
-                    const gv  = Math.min(255, Math.round(lf2 * 248));
-                    const bv  = Math.round(lf2 * 192);
+                    const rv = Math.min(255, Math.round(lf2 * 255));
+                    const gv = Math.min(255, Math.round(lf2 * 248));
+                    const bv = Math.round(lf2 * 192);
                     const color = (rv << 16) | (gv << 8) | bv;
                     g.fillStyle(color, a);
                     g.fillCircle(p.x, p.y, p.r);
 
                 } else if (p.type === 'explosion') {
-                    const l  = 55 + (1 - alpha) * 20;
+                    const l = 55 + (1 - alpha) * 20;
                     const lf3 = l / 100;
                     // hue 0-60 = yellow→red
                     const rv2 = Math.min(255, Math.round(255 * lf3));
@@ -207,3 +207,5 @@ class PhaserParticleSystem {
 
     clear() { this.list = []; }
 }
+
+window.PhaserParticleSystem = PhaserParticleSystem;

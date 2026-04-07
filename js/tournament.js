@@ -11,16 +11,16 @@ class Tournament {
     constructor(entrants) {
         // Pad to next power of 2 if needed
         this.entrants = entrants.slice();
-        this.size     = this._nextPow2(this.entrants.length);
+        this.size = this._nextPow2(this.entrants.length);
 
         // Fill byes
         while (this.entrants.length < this.size) {
             this.entrants.push({ name: 'BYE', isBye: true, color: '#555', shadow: '' });
         }
 
-        this.rounds  = [];   // rounds[r][m] = { p1Idx, p2Idx, winner:null }
+        this.rounds = [];   // rounds[r][m] = { p1Idx, p2Idx, winner:null }
         this.current = 0;    // current round index (0-based)
-        this.matchIdx= 0;    // match index within current round
+        this.matchIdx = 0;    // match index within current round
 
         this._buildBracket();
     }
@@ -67,9 +67,9 @@ class Tournament {
     recordWinner(side) {
         if (this.current >= this.rounds.length) return;
         const round = this.rounds[this.current];
-        const m     = round[this.matchIdx];
-        const winner= side === 0 ? m.p1 : m.p2;
-        m.winner    = winner;
+        const m = round[this.matchIdx];
+        const winner = side === 0 ? m.p1 : m.p2;
+        m.winner = winner;
 
         // Advance
         this.matchIdx++;
@@ -97,8 +97,8 @@ class Tournament {
     _skipByes() {
         while (this.current < this.rounds.length) {
             const round = this.rounds[this.current];
-            if (this.matchIdx >= round.length) { this.current++; this.matchIdx=0; continue; }
-            const m  = round[this.matchIdx];
+            if (this.matchIdx >= round.length) { this.current++; this.matchIdx = 0; continue; }
+            const m = round[this.matchIdx];
             const p1 = this.entrants[m.p1];
             const p2 = this.entrants[m.p2];
             if (p1.isBye || p2.isBye) {
@@ -127,8 +127,8 @@ class Tournament {
         for (let r = 0; r < this.rounds.length; r++) {
             html += `<div class="bracket-col">`;
             const label = r === this.rounds.length - 1 ? 'FINAL'
-                        : r === this.rounds.length - 2 ? 'SEMI-FINAL'
-                        : `ROUND ${r + 1}`;
+                : r === this.rounds.length - 2 ? 'SEMI-FINAL'
+                    : `ROUND ${r + 1}`;
             html += `<div class="bracket-round-label">${label}</div>`;
             for (let m = 0; m < this.rounds[r].length; m++) {
                 const match = this.rounds[r][m];
@@ -138,7 +138,7 @@ class Tournament {
 
                 const p1 = match.p1 !== null ? this.entrants[match.p1] : null;
                 const p2 = match.p2 !== null ? this.entrants[match.p2] : null;
-                const w  = match.winner !== null ? match.winner : -1;
+                const w = match.winner !== null ? match.winner : -1;
 
                 html += this._slotHTML(p1, match.p1 === w, p1 && p1.color);
                 html += '<div class="bracket-vs">vs</div>';
@@ -155,8 +155,8 @@ class Tournament {
     _slotHTML(player, isWinner, color) {
         if (!player) return `<div class="bracket-slot empty">TBD</div>`;
         const style = color ? `style="color:${color};border-color:${color}40"` : '';
-        const winCls= isWinner ? ' winner' : '';
-        const name  = player.name || '???';
+        const winCls = isWinner ? ' winner' : '';
+        const name = player.name || '???';
         return `<div class="bracket-slot${winCls}" ${style}>${name}${isWinner ? ' 🏆' : ''}</div>`;
     }
 
@@ -165,7 +165,9 @@ class Tournament {
     get roundLabel() {
         if (this.current >= this.rounds.length) return 'COMPLETE';
         return this.current === this.rounds.length - 1 ? 'GRAND FINAL'
-             : this.current === this.rounds.length - 2 ? 'SEMI-FINAL'
-             : `ROUND ${this.current + 1}`;
+            : this.current === this.rounds.length - 2 ? 'SEMI-FINAL'
+                : `ROUND ${this.current + 1}`;
     }
 }
+
+window.Tournament = Tournament;

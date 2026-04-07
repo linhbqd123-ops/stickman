@@ -11,8 +11,8 @@ class BootScene extends Phaser.Scene {
         const { width: W, height: H } = this.scale;
         this.add.text(W / 2, H / 2, 'LOADING...', {
             fontFamily: 'Exo 2, sans-serif',
-            fontSize:   '22px',
-            color:      '#00e5ff',
+            fontSize: '22px',
+            color: '#00e5ff',
         }).setOrigin(0.5);
     }
 
@@ -21,3 +21,6 @@ class BootScene extends Phaser.Scene {
         this.scene.start('MenuScene');
     }
 }
+
+// Expose scene class globally for ESM modules
+window.BootScene = BootScene;

@@ -10,13 +10,13 @@ class Bot {
      * @param {number}  difficulty  0–1
      */
     constructor(fighter, difficulty = 0.5) {
-        this.fighter    = fighter;
+        this.fighter = fighter;
         this.difficulty = Math.max(0, Math.min(1, difficulty));
 
-        this._thinkTimer  = 0;
-        this._action      = null;
+        this._thinkTimer = 0;
+        this._action = null;
         this._inputBuffer = fighter._emptyInput();
-        this._inputPrev   = fighter._emptyInput();
+        this._inputPrev = fighter._emptyInput();
 
         // Dodge cooldown to avoid constant dodging
         this._dodgeCooldown = 0;
@@ -28,7 +28,7 @@ class Bot {
 
     /** Call each frame before fighter.update() */
     update(dt, opponents) {
-        const f   = this.fighter;
+        const f = this.fighter;
         const opp = opponents[0]; // primary target
         if (!opp) return;
 
@@ -42,8 +42,8 @@ class Bot {
         this._thinkTimer -= dt;
         if (this._thinkTimer <= 0) {
             this._decide(opp);
-            const baseReact    = CONFIG.BOT_REACT_MS;
-            this._thinkTimer   = baseReact * (1 - this.difficulty * 0.75) + Math.random() * 100;
+            const baseReact = CONFIG.BOT_REACT_MS;
+            this._thinkTimer = baseReact * (1 - this.difficulty * 0.75) + Math.random() * 100;
         }
 
         this._applyAction(dt, opp);
@@ -53,11 +53,11 @@ class Bot {
     //  Decision making
     // ----------------------------------------------------------
     _decide(opp) {
-        const f    = this.fighter;
-        const C    = CONFIG;
-        const dx   = opp.x - f.x;
+        const f = this.fighter;
+        const C = CONFIG;
+        const dx = opp.x - f.x;
         const dist = Math.abs(dx);
-        const d    = this.difficulty;
+        const d = this.difficulty;
 
         // Low difficulty: random idle
         if (Math.random() > 0.28 + d * 0.68) {
@@ -66,7 +66,7 @@ class Bot {
         }
 
         const desiredFacing = Math.sign(dx) || 1;
-        const closeRange    = 110;
+        const closeRange = 110;
 
         // ---- Defensive dodge ----
         if (d > 0.4 && this._dodgeCooldown <= 0) {
@@ -74,7 +74,7 @@ class Bot {
             if (oppAtking && dist < closeRange * 1.3) {
                 const dodgeChance = 0.05 + d * 0.12;
                 if (Math.random() < dodgeChance) {
-                    this._action      = { type: 'dodge', facing: -desiredFacing };
+                    this._action = { type: 'dodge', facing: -desiredFacing };
                     this._dodgeCooldown = 1200;
                     return;
                 }
@@ -115,7 +115,7 @@ class Bot {
         // ---- Approach / dash-in ----
         if (dist > closeRange) {
             const dashIn = d > 0.5 && dist > 200 && Math.random() < 0.25 + d * 0.20;
-            this._action  = { type: dashIn ? 'dash' : 'approach', facing: desiredFacing };
+            this._action = { type: dashIn ? 'dash' : 'approach', facing: desiredFacing };
             return;
         }
 
@@ -126,15 +126,15 @@ class Bot {
     //  Build input and send to fighter
     // ----------------------------------------------------------
     _applyAction(dt, opp) {
-        const f      = this.fighter;
-        const C      = CONFIG;
+        const f = this.fighter;
+        const C = CONFIG;
         const action = this._action || { type: 'idle' };
-        const dx     = opp.x - f.x;
-        const d      = this.difficulty;
+        const dx = opp.x - f.x;
+        const d = this.difficulty;
 
         // Save previous input for rising-edge
-        this._inputPrev   = Object.assign({}, this._inputBuffer);
-        const inp         = this._emptyInp();
+        this._inputPrev = Object.assign({}, this._inputBuffer);
+        const inp = this._emptyInp();
 
         switch (action.type) {
             case 'approach':
@@ -160,8 +160,8 @@ class Bot {
             case 'light':
                 if (action.facing > 0) inp.right = true; else inp.left = true;
                 if (f.atkCooldown <= 0) {
-                    if (action.dir === 'up')       inp.up    = true;
-                    else if (action.dir === 'down') inp.down  = true;
+                    if (action.dir === 'up') inp.up = true;
+                    else if (action.dir === 'down') inp.down = true;
                     inp.light = true;
                 }
                 break;
@@ -169,8 +169,8 @@ class Bot {
             case 'heavy':
                 if (action.facing > 0) inp.right = true; else inp.left = true;
                 if (f.atkCooldown <= 0) {
-                    if (action.dir === 'up')       inp.up    = true;
-                    else if (action.dir === 'down') inp.down  = true;
+                    if (action.dir === 'up') inp.up = true;
+                    else if (action.dir === 'down') inp.down = true;
                     inp.heavy = true;
                 }
                 break;
@@ -181,8 +181,8 @@ class Bot {
         }
 
         // Defensive: avoid walls
-        if (f.x <= C.BLAST_LEFT  + 120) inp.right = true;
-        if (f.x >= C.BLAST_RIGHT - 120) inp.left  = true;
+        if (f.x <= C.BLAST_LEFT + 120) inp.right = true;
+        if (f.x >= C.BLAST_RIGHT - 120) inp.left = true;
 
         // Jump recovery if falling under platforms
         if (!f.onGround && f.vy > 5 && d > 0.3 && Math.random() < 0.01) {
@@ -194,7 +194,11 @@ class Bot {
     }
 
     _emptyInp() {
-        return { left:false, right:false, up:false, down:false,
-                 light:false, heavy:false, dodge:false };
+        return {
+            left: false, right: false, up: false, down: false,
+            light: false, heavy: false, dodge: false
+        };
     }
 }
+
+window.Bot = Bot;

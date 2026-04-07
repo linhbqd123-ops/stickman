@@ -15,92 +15,94 @@ class Fighter {
     constructor(opts) {
         const C = CONFIG;
 
-        this._scene      = opts.scene;     // Phaser.Scene (for timers)
-        this.id          = opts.id;
-        this.isPlayer    = opts.isPlayer !== false;
-        this.keyMap      = opts.keyMap || C.KEYS_P1;
-        this.team        = opts.team ?? opts.id - 1;
+        this._scene = opts.scene;     // Phaser.Scene (for timers)
+        this.id = opts.id;
+        this.isPlayer = opts.isPlayer !== false;
+        this.keyMap = opts.keyMap || C.KEYS_P1;
+        this.team = opts.team ?? opts.id - 1;
 
         // ---- Physics state ----
-        this.x       = opts.x ?? 400;
-        this.y       = opts.y ?? C.PLATFORMS[0].y;
-        this.vx      = 0;
-        this.vy      = 0;
-        this.onGround= true;
+        this.x = opts.x ?? 400;
+        this.y = opts.y ?? C.PLATFORMS[0].y;
+        this.vx = 0;
+        this.vy = 0;
+        this.onGround = true;
         this.onPlatform = null;
-        this.facing  = opts.facingRight ? 1 : -1;
-        this.width   = 20;
+        this.facing = opts.facingRight ? 1 : -1;
+        this.width = 20;
 
         // Drop-through one-way platform
         this.droppingThrough = false;
-        this._dropTimer      = 0;
+        this._dropTimer = 0;
 
         // ---- Crouch state ----
-        this.crouchTimer   = 0;
+        this.crouchTimer = 0;
         this._downTapCount = 0;
-        this._lastDownTap  = 0;
+        this._lastDownTap = 0;
 
         // ---- Stock / damage ----
-        this.stocks  = opts.stocks ?? C.DEFAULT_STOCKS;
-        this.damage  = 0;
+        this.stocks = opts.stocks ?? C.DEFAULT_STOCKS;
+        this.damage = 0;
 
         // ---- Energy ----
-        this.energy  = 0;
+        this.energy = 0;
         this.collectedSkill = null;   // key in CONFIG.SKILLS, e.g. 'fire'
 
         // ---- Combat state ----
-        this.state       = 'idle';
-        this.attackType  = null;
-        this.atkTimer    = 0;
+        this.state = 'idle';
+        this.attackType = null;
+        this.atkTimer = 0;
         this.atkCooldown = 0;
-        this.atkStartup  = 0;
+        this.atkStartup = 0;
         this.atkProgress = 0;
         this.atkDuration = 0;
-        this.hurtTimer   = 0;
-        this.invTimer    = 0;
-        this.dodgeTimer  = 0;
+        this.hurtTimer = 0;
+        this.invTimer = 0;
+        this.dodgeTimer = 0;
         this.dodgeCooldown = 0;
-        this.dashTimer   = 0;
-        this.dashMomentum    = 0;
+        this.dashTimer = 0;
+        this.dashMomentum = 0;
         this.dashMomentumDir = 0;
-        this.dashCooldown    = 0;   // anti-spam between dashes
-        this.isCrouchAttack  = false;
-        this.lastAttackDir   = 'neutral';
-        this.comboHitCount   = 0;
-        this.inCombo         = false;
+        this.dashCooldown = 0;   // anti-spam between dashes
+        this.isCrouchAttack = false;
+        this.lastAttackDir = 'neutral';
+        this.comboHitCount = 0;
+        this.inCombo = false;
 
         // ---- Respawn ----
-        this._respawning   = false;
+        this._respawning = false;
         this._respawnTimer = 0;
 
         // ---- Combo tracking ----
         this._lastAttackTime = 0;
-        this._comboCount     = 0;
+        this._comboCount = 0;
 
         // ---- Air state tracking ----
-        this._airJumpUsed  = false;   // double-jump token (reset on land)
+        this._airJumpUsed = false;   // double-jump token (reset on land)
         this._usedHeavyAir = false;   // heavy_air token (reset on land)
-        this._wasOnGround  = true;
+        this._wasOnGround = true;
 
         // Input snapshot
-        this.input      = this._emptyInput();
+        this.input = this._emptyInput();
         this._prevInput = this._emptyInput();
 
         // ---- Rendering ----
         this.renderer = new Stickman(opts.color, opts.shadow, !opts.facingRight);
-        this.color    = opts.color;
-        this.shadow   = opts.shadow;
-        this.tick     = 0;
+        this.color = opts.color;
+        this.shadow = opts.shadow;
+        this.tick = 0;
     }
 
     _emptyInput() {
-        return { left:false, right:false, up:false, down:false,
-                 light:false, heavy:false, dodge:false };
+        return {
+            left: false, right: false, up: false, down: false,
+            light: false, heavy: false, dodge: false
+        };
     }
 
     setInput(inp) {
         this._prevInput = this.input;
-        this.input      = inp;
+        this.input = inp;
     }
 
     // =========================================================
@@ -110,17 +112,17 @@ class Fighter {
         const C = CONFIG;
         this.tick += dt / 16.667;
 
-        if (this.atkTimer    > 0) this.atkTimer    -= dt;
+        if (this.atkTimer > 0) this.atkTimer -= dt;
         if (this.atkCooldown > 0) this.atkCooldown -= dt;
-        if (this.atkStartup  > 0) this.atkStartup  -= dt;
-        if (this.hurtTimer   > 0) this.hurtTimer   -= dt;
-        if (this.invTimer    > 0) this.invTimer    -= dt;
-        if (this.dodgeTimer  > 0) this.dodgeTimer  -= dt;
+        if (this.atkStartup > 0) this.atkStartup -= dt;
+        if (this.hurtTimer > 0) this.hurtTimer -= dt;
+        if (this.invTimer > 0) this.invTimer -= dt;
+        if (this.dodgeTimer > 0) this.dodgeTimer -= dt;
         if (this.dodgeCooldown > 0) this.dodgeCooldown -= dt;
-        if (this.dashTimer   > 0) this.dashTimer   -= dt;
-        if (this.dashMomentum> 0) this.dashMomentum -= dt;
+        if (this.dashTimer > 0) this.dashTimer -= dt;
+        if (this.dashMomentum > 0) this.dashMomentum -= dt;
         if (this.dashCooldown > 0) this.dashCooldown -= dt;
-        if (this._dropTimer  > 0) {
+        if (this._dropTimer > 0) {
             this._dropTimer -= dt;
             if (this._dropTimer <= 0) this.droppingThrough = false;
         }
@@ -139,10 +141,10 @@ class Fighter {
             this.atkProgress = 0;
         }
 
-        const inAtk   = this.atkTimer   > 0;
-        const inHurt  = this.hurtTimer  > 0;
+        const inAtk = this.atkTimer > 0;
+        const inHurt = this.hurtTimer > 0;
         const inDodge = this.dodgeTimer > 0;
-        const inDash  = this.dashTimer  > 0;
+        const inDash = this.dashTimer > 0;
 
         if (inHurt) {
             this.state = 'hurt';
@@ -162,7 +164,7 @@ class Fighter {
         if (platforms) platforms.resolve(this);
         // Reset air-use tokens on landing
         if (this.onGround && !this._wasOnGround) {
-            this._airJumpUsed  = false;
+            this._airJumpUsed = false;
             this._usedHeavyAir = false;
         }
         this._wasOnGround = this.onGround;
@@ -173,7 +175,7 @@ class Fighter {
     //  Movement
     // =========================================================
     _handleMovement(dt, C) {
-        const inp  = this.input;
+        const inp = this.input;
         const prev = this._prevInput;
         let moving = false;
 
@@ -185,11 +187,11 @@ class Fighter {
                     if (now - this._lastDownTap < 300) {
                         if (this.onPlatform && this.onPlatform.passThrough) {
                             this.droppingThrough = true;
-                            this._dropTimer      = 200;
-                            this.vy              = 2;
-                            this.onGround        = false;
-                            this.crouchTimer     = 0;
-                            this._lastDownTap    = 0;
+                            this._dropTimer = 200;
+                            this.vy = 2;
+                            this.onGround = false;
+                            this.crouchTimer = 0;
+                            this._lastDownTap = 0;
                         }
                     }
                     this._lastDownTap = now;
@@ -205,17 +207,17 @@ class Fighter {
             if (inp.left && !inp.right) {
                 this.vx = -C.MOVE_SPEED; this.facing = -1; moving = true;
             } else if (inp.right && !inp.left) {
-                this.vx =  C.MOVE_SPEED; this.facing =  1; moving = true;
+                this.vx = C.MOVE_SPEED; this.facing = 1; moving = true;
             }
         } else {
             if (inp.left && !inp.right) {
                 this.vx -= C.AIR_MOVE;
-                this.vx  = Math.max(this.vx, -C.MOVE_SPEED);
+                this.vx = Math.max(this.vx, -C.MOVE_SPEED);
                 this.facing = -1; moving = true;
             } else if (inp.right && !inp.left) {
                 this.vx += C.AIR_MOVE;
-                this.vx  = Math.min(this.vx,  C.MOVE_SPEED);
-                this.facing =  1; moving = true;
+                this.vx = Math.min(this.vx, C.MOVE_SPEED);
+                this.facing = 1; moving = true;
             }
         }
 
@@ -228,12 +230,12 @@ class Fighter {
         }
 
         if (this._risingEdge('up') && this.onGround) {
-            this.vy       = C.JUMP_FORCE;
+            this.vy = C.JUMP_FORCE;
             this.onGround = false;
             Audio.playJump();
         } else if (this._risingEdge('up') && !this.onGround && !this._airJumpUsed) {
             // Double jump — slightly weaker
-            this.vy           = Math.round(C.JUMP_FORCE * 0.85);
+            this.vy = Math.round(C.JUMP_FORCE * 0.85);
             this._airJumpUsed = true;
             Audio.playJump && Audio.playJump();
         }
@@ -253,7 +255,7 @@ class Fighter {
     //  Dodge / Dash / Attack
     // =========================================================
     _handleActions(dt, opponents, particles, C) {
-        const inp  = this.input;
+        const inp = this.input;
 
         // Dodge & Dash are NOT gated by atkCooldown
         if (this._risingEdge('dodge')) {
@@ -302,21 +304,21 @@ class Fighter {
 
         const context = this.onGround ? 'ground' : 'air';
         const atkType = lightTrig ? 'light' : 'heavy';
-        const atkKey  = getAttackKey(atkType, dir, context);
+        const atkKey = getAttackKey(atkType, dir, context);
         if (!atkKey) return;
 
         this.isCrouchAttack = (this.state === 'crouch');
-        this.lastAttackDir  = dir;
+        this.lastAttackDir = dir;
         // heavy_air can only be used once per airborne period
         if (atkKey === 'heavy_air' && !this.onGround && this._usedHeavyAir) return;
         this._startAttack(atkKey, opponents, particles, C);
     }
 
     _startDodge(C, dx) {
-        this.dodgeTimer    = C.DODGE_DURATION;
-        this.invTimer      = C.DODGE_DURATION;
+        this.dodgeTimer = C.DODGE_DURATION;
+        this.invTimer = C.DODGE_DURATION;
         this.dodgeCooldown = C.DODGE_COOLDOWN;
-        this.atkCooldown   = C.DODGE_DURATION + 80;
+        this.atkCooldown = C.DODGE_DURATION + 80;
 
         if (!this.onGround) {
             // Aerial dodge: hold vertical position; optional gentle horizontal glide
@@ -336,10 +338,10 @@ class Fighter {
         // After-image trail during dodge — use Phaser timer instead of setInterval
         if (this._scene && window.GameEffects) {
             const INTERVAL = 30;
-            const repeats  = Math.floor(C.DODGE_DURATION / INTERVAL);
+            const repeats = Math.floor(C.DODGE_DURATION / INTERVAL);
             this._scene.time.addEvent({
-                delay:    INTERVAL,
-                repeat:   repeats,
+                delay: INTERVAL,
+                repeat: repeats,
                 callback: () => {
                     if (this.dodgeTimer <= 0) return;
                     GameEffects.addAfterImage(this.x, this.y, this.renderer, {
@@ -357,12 +359,12 @@ class Fighter {
     }
 
     _startDash(C) {
-        this.dashTimer       = C.DASH_DURATION;
-        this.dashMomentum    = C.DASH_MOMENTUM;
+        this.dashTimer = C.DASH_DURATION;
+        this.dashMomentum = C.DASH_MOMENTUM;
         this.dashMomentumDir = this.facing;
-        this.dashCooldown    = C.DASH_COOLDOWN;
-        this.atkCooldown     = C.DASH_DURATION + 50;
-        this.vx              = this.facing * C.DASH_SPEED;
+        this.dashCooldown = C.DASH_COOLDOWN;
+        this.atkCooldown = C.DASH_DURATION + 50;
+        this.vx = this.facing * C.DASH_SPEED;
         Audio.playDash && Audio.playDash();
     }
 
@@ -377,18 +379,18 @@ class Fighter {
             if (!atk) return;
         }
 
-        this.state      = 'attack';
+        this.state = 'attack';
         this.attackType = atkKey;
-        this.inCombo    = false;
-        this.comboHitCount  = 0;
+        this.inCombo = false;
+        this.comboHitCount = 0;
         this.isCrouchAttack = (this.state === 'crouch');
-        this.lastAttackDir  = atk.dir || 'neutral';
+        this.lastAttackDir = atk.dir || 'neutral';
 
         const ACTIVE_WIN = 80;
-        const totalDur   = atk.delay_start + ACTIVE_WIN + atk.delay_end;
-        this.atkTimer    = totalDur;
+        const totalDur = atk.delay_start + ACTIVE_WIN + atk.delay_end;
+        this.atkTimer = totalDur;
         this.atkDuration = totalDur;
-        this.atkStartup  = atk.delay_start;
+        this.atkStartup = atk.delay_start;
         this.atkCooldown = totalDur + 50;
         this.atkProgress = 0;
 
@@ -401,8 +403,8 @@ class Fighter {
         if (atkKey === 'heavy_air') this._usedHeavyAir = true;
 
         // Movement effects on attack start
-        if (atk.slideSpeed)                         this.vx = this.facing * atk.slideSpeed;
-        if (atk.dashSpeed)                          this.vx = this.facing * atk.dashSpeed;
+        if (atk.slideSpeed) this.vx = this.facing * atk.slideSpeed;
+        if (atk.dashSpeed) this.vx = this.facing * atk.dashSpeed;
         if (atk.diveVx !== undefined && atk.diveVy !== undefined) {
             this.vx = this.facing * atk.diveVx;
             this.vy = atk.diveVy;
@@ -515,9 +517,9 @@ class Fighter {
         if (!atk || !opp) return;
         if (opp.invTimer > 0 || opp.state === 'dead') return;
 
-        const C     = CONFIG;
+        const C = CONFIG;
         const scale = 1 + (opp.damage || 0) / 100;
-        const F     = (atk.force || 6) * scale;
+        const F = (atk.force || 6) * scale;
         let kbx, kby;
 
         if (atk.kbHorizontal) {
@@ -525,29 +527,29 @@ class Fighter {
         } else if (atk.kbUp) {
             kbx = this.facing * F * 0.55; kby = -F * 0.90;
         } else if (atkKey === 'light_air_down') {
-            kbx = this.facing * F * 0.65; kby =  F * 0.65;
+            kbx = this.facing * F * 0.65; kby = F * 0.65;
         } else if (atkKey === 'heavy_air_down') {
-            kbx = this.facing * F * 0.15; kby =  F * 1.0;
+            kbx = this.facing * F * 0.15; kby = F * 1.0;
         } else if (atkKey === 'heavy_air') {
-            kbx = this.facing * F * 0.5;  kby = -F * 0.85;
+            kbx = this.facing * F * 0.5; kby = -F * 0.85;
         } else if (atkKey.startsWith('ultimate') || atkKey === 'ultimate') {
             // Radial: direction based on relative position (all ultimate types)
             const kbDir = (opp.x >= this.x ? 1 : -1);
             if (atk.radial) {
                 kbx = kbDir * F * 0.95; kby = -F * 0.55;
             } else {
-                kbx = kbDir * F * 0.9;  kby = -F * 0.75;
+                kbx = kbDir * F * 0.9; kby = -F * 0.75;
             }
         } else {
             kbx = this.facing * F; kby = -F * 0.55;
         }
 
-        opp.vx        = kbx;
-        opp.vy        = kby;
-        opp.onGround  = false;
-        opp.damage    = (opp.damage || 0) + (atk.dmg || 5);
+        opp.vx = kbx;
+        opp.vy = kby;
+        opp.onGround = false;
+        opp.damage = (opp.damage || 0) + (atk.dmg || 5);
         opp.hurtTimer = C.HURT_DURATION;
-        opp.invTimer  = isCombo ? 60 : 120;
+        opp.invTimer = isCombo ? 60 : 120;
 
         if (atkKey !== 'ultimate' && !atkKey.startsWith('ultimate_')) {
             this.energy = Math.min(C.ENERGY.MAX, this.energy + C.ENERGY.GAIN_ON_HIT);
@@ -556,8 +558,8 @@ class Fighter {
 
         if (particles) {
             const hitY = opp.y - 40;
-            particles.spawnBlood   && particles.spawnBlood(opp.x, hitY, this.facing);
-            particles.spawnSpark   && particles.spawnSpark(opp.x, hitY);
+            particles.spawnBlood && particles.spawnBlood(opp.x, hitY, this.facing);
+            particles.spawnSpark && particles.spawnSpark(opp.x, hitY);
             if (atk.type === 'ultimate') {
                 particles.spawnShockwave && particles.spawnShockwave(opp.x, hitY, 1.8);
             } else if (atk.type === 'heavy') {
@@ -568,9 +570,9 @@ class Fighter {
         if (window.GameEffects) {
             if (atk.type === 'ultimate') {
                 const skillColor = {
-                    ultimate_fire:    'rgba(255,100,0,0.7)',
+                    ultimate_fire: 'rgba(255,100,0,0.7)',
                     ultimate_thunder: 'rgba(255,240,50,0.75)',
-                    ultimate_void:    'rgba(180,0,255,0.65)',
+                    ultimate_void: 'rgba(180,0,255,0.65)',
                     ultimate_berserk: 'rgba(255,30,60,0.65)',
                 }[atkKey] || 'rgba(255,200,50,0.65)';
                 GameEffects.shake(3.0, 500);
@@ -590,9 +592,9 @@ class Fighter {
 
     _checkHit(atkKey, opp, atk, ignoreInv = false) {
         if (!ignoreInv && opp.invTimer > 0) return false;
-        const dx    = opp.x - this.x;
+        const dx = opp.x - this.x;
         const absDx = Math.abs(dx);
-        const dy    = opp.y - this.y;
+        const dy = opp.y - this.y;
 
         if (atkKey === 'heavy_air' || atkKey === 'heavy_air_down') {
             if (dy < -20) return false;
@@ -610,11 +612,11 @@ class Fighter {
     // =========================================================
     _applyPhysics(dt, C) {
         this.vy += C.GRAVITY;
-        this.vy  = Math.min(this.vy, C.MAX_FALL);
+        this.vy = Math.min(this.vy, C.MAX_FALL);
 
         if (!this.onGround && this.state !== 'attack' && this.input && this.input.down) {
             this.vy += C.GRAVITY * 0.8;
-            this.vy  = Math.min(this.vy, C.MAX_FALL);
+            this.vy = Math.min(this.vy, C.MAX_FALL);
         }
 
         // Aerial dodge: counteract gravity every frame to hold height
@@ -659,8 +661,8 @@ class Fighter {
     // =========================================================
     _checkBlastZone(opponents, particles, C) {
         if (this._respawning || this.state === 'dead') return;
-        const oob = this.x < C.BLAST_LEFT  || this.x > C.BLAST_RIGHT ||
-                    this.y > C.BLAST_BOTTOM || this.y < C.BLAST_TOP;
+        const oob = this.x < C.BLAST_LEFT || this.x > C.BLAST_RIGHT ||
+            this.y > C.BLAST_BOTTOM || this.y < C.BLAST_TOP;
         if (!oob) return;
 
         this.stocks--;
@@ -669,25 +671,25 @@ class Fighter {
 
         if (this.stocks <= 0) {
             this.stocks = 0;
-            this.state  = 'dead';
+            this.state = 'dead';
         } else {
-            this._respawning   = true;
+            this._respawning = true;
             this._respawnTimer = C.RESPAWN_DELAY;
             this.vx = 0; this.vy = 0;
-            this.x  = -9999; this.y = -9999;
+            this.x = -9999; this.y = -9999;
         }
     }
 
     _doRespawn() {
-        const C      = CONFIG;
+        const C = CONFIG;
         this._respawning = false;
         const ground = C.PLATFORMS[0];
-        this.x  = ground.x + ground.w / 2 + (this.id % 2 === 0 ? 120 : -120);
-        this.y  = ground.y - 200;
+        this.x = ground.x + ground.w / 2 + (this.id % 2 === 0 ? 120 : -120);
+        this.y = ground.y - 200;
         this.vx = 0; this.vy = 0;
-        this.state    = 'airborne';
+        this.state = 'airborne';
         this.invTimer = C.RESPAWN_INVIN;
-        this.hurtTimer= 0;
+        this.hurtTimer = 0;
     }
 
     // =========================================================
@@ -699,44 +701,44 @@ class Fighter {
 
     reset(x, facingRight, stocks) {
         const C = CONFIG;
-        this.x  = x;
-        this.y  = C.PLATFORMS[0].y - 10;
+        this.x = x;
+        this.y = C.PLATFORMS[0].y - 10;
         this.vx = 0; this.vy = 0;
-        this.onGround        = true;
-        this.facing          = facingRight ? 1 : -1;
-        this.damage          = 0;
-        this.stocks          = stocks ?? C.DEFAULT_STOCKS;
-        this.energy          = 0;
-        this.state           = 'idle';
-        this.attackType      = null;
-        this.atkTimer        = 0;
-        this.atkCooldown     = 0;
-        this.atkProgress     = 0;
-        this.atkDuration     = 0;
-        this.hurtTimer       = 0;
-        this.invTimer        = 0;
-        this.dodgeTimer      = 0;
-        this.dashTimer       = 0;
-        this.atkStartup      = 0;
-        this.dodgeCooldown   = 0;
-        this.dashMomentum    = 0;
+        this.onGround = true;
+        this.facing = facingRight ? 1 : -1;
+        this.damage = 0;
+        this.stocks = stocks ?? C.DEFAULT_STOCKS;
+        this.energy = 0;
+        this.state = 'idle';
+        this.attackType = null;
+        this.atkTimer = 0;
+        this.atkCooldown = 0;
+        this.atkProgress = 0;
+        this.atkDuration = 0;
+        this.hurtTimer = 0;
+        this.invTimer = 0;
+        this.dodgeTimer = 0;
+        this.dashTimer = 0;
+        this.atkStartup = 0;
+        this.dodgeCooldown = 0;
+        this.dashMomentum = 0;
         this.dashMomentumDir = 0;
-        this.inCombo         = false;
-        this.comboHitCount   = 0;
-        this._respawning     = false;
-        this._respawnTimer   = 0;
+        this.inCombo = false;
+        this.comboHitCount = 0;
+        this._respawning = false;
+        this._respawnTimer = 0;
         this.droppingThrough = false;
-        this._dropTimer      = 0;
-        this._comboCount     = 0;
+        this._dropTimer = 0;
+        this._comboCount = 0;
         this._lastAttackTime = 0;
-        this.input           = this._emptyInput();
-        this._prevInput      = this._emptyInput();
-        this.tick            = 0;
-        this.dashCooldown    = 0;
-        this._airJumpUsed    = false;
-        this._usedHeavyAir   = false;
-        this._wasOnGround    = true;
-        this.collectedSkill  = null;
+        this.input = this._emptyInput();
+        this._prevInput = this._emptyInput();
+        this.tick = 0;
+        this.dashCooldown = 0;
+        this._airJumpUsed = false;
+        this._usedHeavyAir = false;
+        this._wasOnGround = true;
+        this.collectedSkill = null;
     }
 
     /** Called by GameScene._render() */
@@ -756,7 +758,7 @@ class InputManager {
         this.keys = {};
         window.addEventListener('keydown', e => {
             this.keys[e.code] = true;
-            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
             Audio.resume && Audio.resume();
         });
         window.addEventListener('keyup', e => { this.keys[e.code] = false; });
@@ -764,11 +766,14 @@ class InputManager {
     getForMap(keyMap) {
         const k = this.keys;
         return {
-            left:  !!k[keyMap.left],  right: !!k[keyMap.right],
-            up:    !!k[keyMap.up],    down:  !!k[keyMap.down || ''],
+            left: !!k[keyMap.left], right: !!k[keyMap.right],
+            up: !!k[keyMap.up], down: !!k[keyMap.down || ''],
             light: !!k[keyMap.light], heavy: !!k[keyMap.heavy],
             dodge: !!k[keyMap.dodge],
         };
     }
     flush() { this.keys = {}; }
 }
+
+window.Fighter = Fighter;
+window.InputManager = InputManager;
