@@ -1,6 +1,41 @@
 'use strict';
 /* =========================================================
    PLATFORM SYSTEM — Multi-map upgrade
+   
+   PLATFORM PROPERTIES:
+   • id: unique identifier
+   • x, y: top-left position
+   • w: width in pixels
+    • h: collision height (physics/hitbox) — controls where fighter stands
+    • displayHeight/visualH: image render height (visual only, never affects collision)
+    • imageAnchorY: 0.0–1.0, which row % of the image aligns with plat.y (default 0 = image top)
+    • imageOffsetY: pixel fine-tune for image Y after anchor is applied
+   • passThrough: one-way platform? (true = can drop through from above)
+   • imagePath: asset path to platform image
+   • imageKey: Phaser texture key for caching
+   
+   KEY CONCEPT — anchor point A = (plat.x, plat.y)
+   Everything is measured from A independently:
+
+   Collision box  → A down by h px          (player feet snap to A.y)
+   Image          → shifted by imageAnchorY  (0% = image top at A.y)
+
+   PNG with transparent top (anchor at 40% = imageAnchorY: 0.4):
+   ┌──────────────────────────────────┐ ← image top  (A.y - 0.4*displayHeight)
+   │  transparent padding             │
+   ├──────────────────────────────────┤ ← A.y = plat.y = player feet ← COLLISION
+   │  visible platform surface        │
+   │  (actual artwork)                │
+   └──────────────────────────────────┘ ← image bottom
+
+   h and displayHeight/imageAnchorY are COMPLETELY INDEPENDENT.
+   
+   BENEFITS:
+   • Clear separation: physics ≠ visuals
+    • Config flexibility: tune collision without affecting image scaling
+   • Easy to fix: tall visuals + compact collision = no floating fighters
+   
+   SYSTEM FEATURES:
    • constructor(scene, mapKey) — resolves MAPS config, deep-copies platforms
    • Image support — creates Phaser Image objects for platforms with imageKey
    • Random movement — smooth velocity-based horizontal drift for passThrough
@@ -27,14 +62,35 @@ class PlatformSystem {
         for (const plat of this.platforms) {
             const key = plat.imageKey;
             if (key && scene && scene.textures.exists(key)) {
+                // Anchor image at TOP-CENTER (origin 0.5, 0):
+                // imageOffsetY (default 0): fine-tune image position when PNG has
+                // transparent padding at the top so the visible surface doesn't start at pixel row 0.
+                //   imageOffsetY: 0   → image top aligns exactly with collision surface (plat.y)
+                //   imageOffsetY: -20 → shift image UP 20px (visible surface was 20px too low)
+                //   imageOffsetY: +10 → shift image DOWN 10px
+                const visualBounds = this._resolveVisualBounds(plat, key);
                 const img = scene.add.image(
-                    plat.x + plat.w / 2,
-                    plat.y + plat.h / 2,
+                    visualBounds.x + visualBounds.w / 2,
+                    visualBounds.y,
                     key
                 );
-                img.setDisplaySize(plat.w, plat.h);
+                img.setOrigin(0.5, 0);   // top-center anchor: image grows downward from plat.y
+                img.setDisplaySize(visualBounds.w, visualBounds.h);
                 img.setDepth(1);
                 this._platImages[plat.id] = img;
+
+                // Persist resolved visual bounds for debug + runtime sync.
+                // These are visual-only and never used for collision.
+                plat._visualDx = visualBounds.x - plat.x;
+                plat._visualDy = visualBounds.y - plat.y;
+                plat._visualW = visualBounds.w;
+                plat._visualH = visualBounds.h;
+                plat._visualBounds = {
+                    x: visualBounds.x,
+                    y: visualBounds.y,
+                    w: visualBounds.w,
+                    h: visualBounds.h,
+                };
             }
 
             // ---- Init movement state for floating (passThrough) platforms ----
@@ -48,7 +104,12 @@ class PlatformSystem {
     }
 
     // =========================================================
-    //  Collision (unchanged from original)
+    //  Collision Detection
+    //  KEY: h defines collision height tolerance
+    //    - displayHeight = visual appearance
+    //    - h = collision box height (from plat.y to plat.y + h)
+    //    - Entity stands at plat.y (top surface)
+    //    - colHeight = Math.max(h, 4) ensures minimum tolerance
     // =========================================================
     resolve(entity) {
         const halfW = entity.width || 20;
@@ -63,13 +124,17 @@ class PlatformSystem {
             if (plat.passThrough) {
                 if (entity.vy < 0) continue;
                 if (entity.droppingThrough) continue;
-                if (prevY > plat.y + 2) continue;
-                if (entity.y >= plat.y && prevY <= plat.y + 4) {
+                // Use h to define collision height; minimum 4px tolerance for safety
+                const colHeight = Math.max(plat.h, 4);
+                if (prevY > plat.y + colHeight) continue;  // h MATTERS: bigger h = can approach from higher
+                if (entity.y >= plat.y && prevY <= plat.y + colHeight) {
                     entity.y = plat.y; entity.vy = 0;
                     entity.onGround = true; entity.onPlatform = plat;
                 }
             } else {
-                if (entity.vy >= 0 && entity.y >= plat.y && prevY <= plat.y + 4) {
+                // Use h for solid platforms too
+                const colHeight = Math.max(plat.h, 4);
+                if (entity.vy >= 0 && entity.y >= plat.y && prevY <= plat.y + colHeight) {
                     entity.y = plat.y; entity.vy = 0;
                     entity.onGround = true; entity.onPlatform = plat;
                 }
@@ -152,10 +217,65 @@ class PlatformSystem {
                 this._platVels[id] = -Math.abs(this._platVels[id]);
             }
 
-            // Keep Phaser Image in sync
+            // Keep Phaser Image in sync with moving platform
             const img = this._platImages[id];
-            if (img) img.setPosition(plat.x + plat.w / 2, plat.y + plat.h / 2);
+            if (img) {
+                const visualX = plat.x + (plat._visualDx || 0);
+                const visualY = plat.y + (plat._visualDy || 0);
+                img.setPosition(visualX + (plat._visualW || plat.w) / 2, visualY);
+                plat._visualBounds = {
+                    x: visualX,
+                    y: visualY,
+                    w: plat._visualW || plat.w,
+                    h: plat._visualH || 0,
+                };
+            }
         }
+    }
+
+    _resolveVisualBounds(plat, textureKey) {
+        const tex = this._scene && this._scene.textures ? this._scene.textures.get(textureKey) : null;
+        const src = tex && tex.getSourceImage ? tex.getSourceImage() : null;
+
+        const naturalW = src && src.width ? src.width : Math.max(plat.w || 1, 1);
+        const naturalH = src && src.height ? src.height : naturalW;
+
+        // ── Visual width (never affects collision w) ──────────────────────
+        const resolvedW = Number.isFinite(plat.visualW) ? plat.visualW
+            : (Number.isFinite(plat.visualWidth) ? plat.visualWidth : plat.w);
+
+        // ── Visual height (NEVER touches plat.h / collision) ─────────────
+        // Priority: visualH → visualHeight → displayHeight → natural aspect ratio
+        const resolvedH = Number.isFinite(plat.visualH) ? plat.visualH
+            : (Number.isFinite(plat.visualHeight) ? plat.visualHeight
+            : (Number.isFinite(plat.displayHeight) ? plat.displayHeight
+            : Math.max(1, resolvedW * (naturalH / Math.max(naturalW, 1)))));
+
+        // ── Visual X (never affects collision) ───────────────────────────
+        const offX = Number.isFinite(plat.imageOffsetX) ? plat.imageOffsetX : 0;
+        const visualX = plat.x + offX;
+
+        // ── Visual Y — FULLY INDEPENDENT from collision plat.y ───────────
+        //
+        //  plat.y  = collision surface (where player feet land). FIXED. Untouched.
+        //
+        //  imageAnchorY (0.0–1.0): which row of the IMAGE should align with plat.y.
+        //    0.0 (default) → image top    aligns with plat.y  (no transparent top)
+        //    0.4           → 40% down the image aligns with plat.y
+        //                    (PNG has 40% transparent top before visible surface)
+        //    0.5           → image center aligns with plat.y
+        //  imageOffsetY: additional pixel fine-tune AFTER anchor is applied.
+        //
+        //  Example: PNG is 100px tall, visible plank starts at row 30 (30% down).
+        //    → imageAnchorY: 0.3   image shifts up 30px, plank top lands at plat.y.
+        //    Player feet at plat.y = touching visible plank. No floating.
+        //
+        const anchorY = Number.isFinite(plat.imageAnchorY) ? plat.imageAnchorY : 0;
+        const offY    = Number.isFinite(plat.imageOffsetY) ? plat.imageOffsetY : 0;
+        // Image top = plat.y shifted up by anchor fraction, then fine-tuned by offY
+        const visualY = plat.y - anchorY * resolvedH + offY;
+
+        return { x: visualX, y: visualY, w: resolvedW, h: resolvedH };
     }
 
     // =========================================================

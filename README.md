@@ -205,6 +205,7 @@ The `api/signal.js` relay handles room token creation and presence — it is **s
 | Light attack | `J` |
 | Heavy attack | `K` |
 | Dodge / Dash | `L` |
+| Drop current ultimate | `F` |
 | **Ultimate** | `J` + `K` simultaneously (Energy must be full) |
 
 ### Player 2 (local only — right side of keyboard)
@@ -217,6 +218,7 @@ The `api/signal.js` relay handles room token creation and presence — it is **s
 | Light attack | `Numpad 1` |
 | Heavy attack | `Numpad 2` |
 | Dodge / Dash | `Numpad 3` |
+| Drop current ultimate | `Numpad 0` |
 | **Ultimate** | `Numpad 1` + `Numpad 2` simultaneously (Energy must be full) |
 
 > **Online mode**: each player uses the Player 1 keybinds on their own machine.
@@ -282,22 +284,32 @@ Dodge has a **3-second cooldown** from the button press, so use it wisely.
 - Gain energy by **landing hits** (+8 per hit) or **being hit** (+5 per hit).
 - When the bar is **full (100)** it pulses gold.
 - Press Light + Heavy simultaneously to fire your **Ultimate**.
-- Using the Ultimate consumes all energy.
+- Ultimate energy usage is now **configurable per skill** (`energyCost` / `energyRefund`).
 
 ---
 
 ## 6. Skill Items & Ultimates
 
-Glowing orbs spawn on floating platforms every ~14 seconds (max 3 active at once). Walk into one to collect it — the orb replaces your default Ultimate until used.
+V2 uses **skill boxes** on map (not legacy V1 orbs). You can hold only one ultimate at a time.
 
-| Icon colour | Skill | Ultimate Effect |
-|-------------|-------|----------------|
-| 🟠 Orange | **FIRE** | Rocket punch — dash through enemy at high speed (fast startup, 28 dmg) |
-| 🟡 Yellow | **THUNDER** | Leap + two-fist overhead slam (30 dmg, launches upward) |
-| 🟣 Purple | **VOID** | Wide radial shockwave — hits ALL enemies in 240 px range (32 dmg) |
-| 🔴 Red | **BERSERK** | 5-hit rapid combo, each hit holds enemy close; final hit launches (total ~48 dmg) |
+Rules:
 
-> Skill items despawn after **22 seconds** if uncollected. Killing a player with high damage while they hold a skill does not drop the orb.
+1. You must drop your current ultimate first (`F` / `Numpad 0`) before picking another.
+2. Manual drop discards the current ultimate immediately.
+3. Saitama box is singleton (only one active/held at a time) and has very low rarity.
+
+V2 ultimates:
+
+1. `default` — close-range power strike (fixed forward hitbox)
+2. `yasuo` — wind slash projectile, hit confirms into teleport + 5-hit combo
+3. `kamehameha` — long beam to map edge with high knockback
+4. `fpt` — 8 meteors over 3 seconds (damage per meteor configurable)
+5. `saitama` — freeze + fullscreen video + global damage to all enemies
+
+Asset upload guides:
+
+1. Icons + meteor sprite (shared all maps): `assets/ultimates/README.md`
+2. Saitama video file: `assets/videos/README.md`
 
 ---
 

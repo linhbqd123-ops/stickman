@@ -13,6 +13,7 @@ window.Peer = Peer;
 
 // ── Import all game modules in order ──
 import './config.js';
+import './ultimate.debug.js';
 import './network.js';
 import './audio.js';
 import './tournament.js';

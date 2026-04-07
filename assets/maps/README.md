@@ -59,3 +59,15 @@ assets/maps/
 - Music: `<map>_theme.mp3` (e.g., `naruto_theme.mp3`)
 
 See each map's README.md for detailed image specifications.
+
+---
+
+## Ultimate V2 Upload Guide
+
+Ultimate icons/meteor are now shared globally across all maps.
+
+See:
+
+`assets/ultimates/README.md`
+
+You no longer need to copy ultimate files into each map folder.

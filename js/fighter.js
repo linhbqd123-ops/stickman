@@ -48,6 +48,10 @@ class Fighter {
         this.energy = 0;
         this.collectedSkill = null;   // key in CONFIG.SKILLS, e.g. 'fire'
 
+        // ---- Ultimate V2 ----
+        this.collectedUltimate = null;  // key in CONFIG.ULTIMATE_SKILLS
+        this.ultimateCooldown = 0;      // ms remaining cooldown
+
         // ---- Combat state ----
         this.state = 'idle';
         this.attackType = null;
@@ -106,7 +110,7 @@ class Fighter {
     _emptyInput() {
         return {
             left: false, right: false, up: false, down: false,
-            light: false, heavy: false, dodge: false
+            light: false, heavy: false, dodge: false, drop: false,
         };
     }
 
@@ -133,6 +137,7 @@ class Fighter {
         if (this.dashMomentum > 0) this.dashMomentum -= dt;
         if (this.dashCooldown > 0) this.dashCooldown -= dt;
         if (this._wallJumpCooldown > 0) this._wallJumpCooldown -= dt;
+        if (this.ultimateCooldown > 0) this.ultimateCooldown -= dt;
         if (this._dropTimer > 0) {
             this._dropTimer -= dt;
             if (this._dropTimer <= 0) this.droppingThrough = false;
@@ -232,7 +237,6 @@ class Fighter {
                 this.state = 'wallgrab';
                 this._airJumpUsed = false;    // gift a double-jump for climbing off
                 this._wallGrabTick = 0;
-                if (window.GameEffects) GameEffects.shake(0.25, 60);
                 Audio.playDodge && Audio.playDodge();
             }
 
@@ -258,10 +262,6 @@ class Fighter {
                 this._airJumpUsed = false;    // fresh double-jump after wall jump
                 this._wallGrabTick = 0;
                 Audio.playJump && Audio.playJump();
-                if (window.GameEffects) {
-                    GameEffects.shake(0.5, 90);
-                    GameEffects.flash('rgba(200,230,255,0.18)', 120);
-                }
                 if (particles) particles.spawnWallDust(this.x, this.y, this.wallDir);
                 return;
             }
@@ -364,8 +364,24 @@ class Fighter {
 
         const lightTrig = this._risingEdge('light');
         const heavyTrig = this._risingEdge('heavy');
+        const dropTrig = this._risingEdge('drop');
 
-        // Ultimate: requires a collected skill item (light+heavy at full energy)
+        // Drop current V2 ultimate skill (F / Numpad0)
+        if (dropTrig && this.collectedUltimate) {
+            if (window.SkillDropSystem) SkillDropSystem.dropFromFighter(this);
+            return;
+        }
+
+        // V2 Ultimate: requires a collected V2 ultimate (light+heavy at full energy)
+        if (this.collectedUltimate && this.energy >= CONFIG.ENERGY.MAX && this.ultimateCooldown <= 0) {
+            const ultiTrig = (lightTrig && inp.heavy) || (heavyTrig && inp.light) || (lightTrig && heavyTrig);
+            if (ultiTrig) {
+                this._fireUltimateV2(opponents, particles, C);
+                return;
+            }
+        }
+
+        // Legacy ultimate: requires a collected skill item (light+heavy at full energy)
         if (this.collectedSkill && this.energy >= CONFIG.ENERGY.MAX) {
             const ultiTrig = (lightTrig && inp.heavy) || (heavyTrig && inp.light) || (lightTrig && heavyTrig);
             if (ultiTrig) {
@@ -416,11 +432,6 @@ class Fighter {
             this.vx = dx * (C.DODGE_DIST / (C.DODGE_DURATION / 16));
         } else {
             this.vx *= 0.1;
-        }
-
-        if (window.GameEffects) {
-            GameEffects.shake(0.5, 80);
-            GameEffects.flash('rgba(100,200,255,0.2)', 100);
         }
 
         // After-image trail during dodge — use Phaser timer instead of setInterval
@@ -506,14 +517,9 @@ class Fighter {
         // Visual effects (GameEffects assigned by GameScene)
         if (window.GameEffects) {
             if (atk.type === 'ultimate') {
-                GameEffects.shake(2.5, 400);
-                GameEffects.flash('rgba(255,220,50,0.7)', 350);
                 GameEffects.zoom(0.85, 500);
             } else if (atk.type === 'heavy') {
-                GameEffects.shake(1.2, 180);
                 GameEffects.zoom(0.95, 280);
-            } else {
-                GameEffects.shake(0.5, 90);
             }
         }
 
@@ -580,13 +586,51 @@ class Fighter {
     // =========================================================
     collectSkill(skillKey) {
         this.collectedSkill = skillKey;
-        const s = CONFIG.SKILLS[skillKey];
-        if (window.GameEffects && s) {
-            GameEffects.flash(s.shadow, 350);
-            GameEffects.shake(0.8, 150);
-        }
         Audio.playPowerUp && Audio.playPowerUp();
     }
+
+    // =========================================================
+    //  Ultimate V2 — collect / drop / fire
+    // =========================================================
+    collectUltimate(ultimateId) {
+        // If already holding one, notify drop system to spawn it back
+        if (this.collectedUltimate && window.SkillDropSystem) {
+            SkillDropSystem.dropFromFighter(this);
+        }
+        this.collectedUltimate = ultimateId;
+        Audio.playPowerUp && Audio.playPowerUp();
+
+        // Saitama penalty: on collect, reduce current energy to 50% of MAX
+        if (ultimateId === 'saitama') {
+            const maxEnergy = CONFIG.ENERGY.MAX || 100;
+            const penalty = Math.floor(maxEnergy * 0.5);
+            this.energy = Math.max(0, Math.min(penalty, maxEnergy));
+        }
+
+        return true;  // Signal box consumed
+    }
+
+    dropUltimate() {
+        const id = this.collectedUltimate;
+        this.collectedUltimate = null;
+        return id;  // return id so caller can spawn a SkillBox
+    }
+
+    _fireUltimateV2(opponents, particles, C) {
+        const id = this.collectedUltimate;
+        const def = CONFIG.ULTIMATE_SKILLS && CONFIG.ULTIMATE_SKILLS[id];
+        if (!def || !def.enabled) return;
+
+        this.energy = def.energyRefund !== undefined ? def.energyRefund : 0;
+        this.collectedUltimate = null;
+        if (def.cooldown) this.ultimateCooldown = def.cooldown;
+
+        if (window.UltimateSystem) {
+            UltimateSystem.fire(id, this, opponents, particles, this._scene);
+        }
+    }
+
+
 
     // Unified timer — uses Phaser scene timer when available (respects pause),
     // falls back to setTimeout for safety.
@@ -657,22 +701,16 @@ class Fighter {
 
         if (window.GameEffects) {
             if (atk.type === 'ultimate') {
-                const skillColor = {
-                    ultimate_fire: 'rgba(255,100,0,0.7)',
-                    ultimate_thunder: 'rgba(255,240,50,0.75)',
-                    ultimate_void: 'rgba(180,0,255,0.65)',
-                    ultimate_berserk: 'rgba(255,30,60,0.65)',
-                }[atkKey] || 'rgba(255,200,50,0.65)';
-                GameEffects.shake(3.0, 500);
-                GameEffects.flash(skillColor, 400);
                 GameEffects.zoom(1.12, 400);
             } else if (atk.type === 'heavy') {
-                GameEffects.shake(1.5, 200);
-                if (opp.damage >= 100) GameEffects.flash('rgba(255,80,50,0.55)', 220);
                 GameEffects.zoom(1.05, 250);
-            } else if (!isCombo) {
-                GameEffects.shake(0.4, 80);
             }
+            // Damage number popup
+            const dmgColor = atk.type === 'ultimate' ? '#ff4444'
+                           : atk.type === 'heavy'   ? '#ffaa00'
+                           : '#ffd700';
+            GameEffects.spawnDmgNumber && GameEffects.spawnDmgNumber(
+                opp.x, opp.y - 60, atk.dmg || 5, dmgColor);
         }
 
         Audio.playHurt && Audio.playHurt();
@@ -757,13 +795,31 @@ class Fighter {
     // =========================================================
     _checkBlastZone(opponents, particles, C) {
         if (this._respawning || this.state === 'dead') return;
-        const oob = this.x < C.BLAST_LEFT || this.x > C.BLAST_RIGHT ||
-            this.y > C.BLAST_BOTTOM || this.y < C.BLAST_TOP;
+        const B = (this._scene && this._scene._blastBounds) ? this._scene._blastBounds : {
+            left: C.BLAST_LEFT, right: C.BLAST_RIGHT, top: C.BLAST_TOP, bottom: C.BLAST_BOTTOM
+        };
+        const oob = this.x < B.left || this.x > B.right ||
+            this.y > B.bottom || this.y < B.top;
         if (!oob) return;
 
         this.stocks--;
         this.damage = 0;
         Audio.playKO();
+
+        // V2: drop ultimate box on KO (notify GameScene via SkillDropSystem event)
+        if (window.SkillDropSystem && this._scene) {
+            // Defer 1 frame so KO position is final
+            const _x = this.x, _y = this.y;
+            const _id = this.collectedUltimate;
+            this._scheduleTimer(50, () => {
+                if (_id) {
+                    SkillDropSystem.spawnBox(_x, _y - 40, _id);
+                } else if (this._scene._onFighterKO) {
+                    this._scene._onFighterKO(this);
+                }
+            });
+        }
+        this.collectedUltimate = null;
 
         if (this.stocks <= 0) {
             this.stocks = 0;
@@ -792,12 +848,14 @@ class Fighter {
     //  Utility
     // =========================================================
     _risingEdge(key) {
-        // _netRise_<key> flags are set by the host's GameScene when it detects a
+        // _netRise_<key> counters are set by the host's GameScene when it detects a
         // rising edge in a received network input packet, BEFORE the key could be
         // released again in the same frame (preventing the jump / attack from
         // being silently eaten by fast key-tap + release between host frames).
+        // Using a counter (not boolean) lets two rapid rising edges (e.g. double-jump)
+        // both arrive in the same host frame without the second being silently lost.
         const nk = '_netRise_' + key;
-        if (this[nk]) { this[nk] = false; return true; }
+        if (this[nk] > 0) { this[nk]--; return true; }
         return !!(this.input[key] && !this._prevInput[key]);
     }
 

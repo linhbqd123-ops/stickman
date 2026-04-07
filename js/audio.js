@@ -5,6 +5,7 @@
    ========================================================= */
 const Audio = (() => {
     let ctx = null;
+    const _attachedSources = new WeakMap();
 
     function init() {
         if (ctx) return;
@@ -61,7 +62,32 @@ const Audio = (() => {
     function playDodge() { burst({ type: 'sine', freqStart: 600, freqEnd: 900, duration: 0.07, gain: 0.08 }); }
     function playDash() { noiseBurst(0.3, 0.05); burst({ type: 'sawtooth', freqStart: 300, freqEnd: 150, duration: 0.08, gain: 0.15 }); }
 
-    return { init, resume, playPunch, playKick, playHurt, playJump, playKO, playRoundStart, playDodge, playDash };
+    function attachMediaElement(video) {
+        if (!video) return false;
+        init();
+        if (!ctx) return false;
+        try {
+            if (_attachedSources.has(video)) return true;
+            const src = ctx.createMediaElementSource(video);
+            src.connect(ctx.destination);
+            _attachedSources.set(video, src);
+            return true;
+        } catch (e) {
+            console.warn('[Audio] attachMediaElement failed', e);
+            return false;
+        }
+    }
+
+    function detachMediaElement(video) {
+        if (!video || !ctx) return;
+        const src = _attachedSources.get(video);
+        if (src) {
+            try { src.disconnect(); } catch (e) {}
+            _attachedSources.delete(video);
+        }
+    }
+
+    return { init, resume, playPunch, playKick, playHurt, playJump, playKO, playRoundStart, playDodge, playDash, attachMediaElement, detachMediaElement };
 })();
 
 // Expose Audio globally for ESM modules

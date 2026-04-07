@@ -199,6 +199,56 @@ const UI = (() => {
             const pct = Math.round((f.energy / CONFIG.ENERGY.MAX) * 100);
             fill.style.width = pct + '%';
             fill.classList.toggle('full', f.energy >= CONFIG.ENERGY.MAX);
+
+            // Show V2 ultimate name badge + icon (icon is outside badge now)
+            const badge = $(`p${i + 1}-ultimate-badge`);
+            const iconEl = $(`p${i + 1}-ultimate-icon`);
+            if (badge) {
+                const ultimateId = f.collectedUltimate;
+                if (ultimateId) {
+                    const def = CONFIG.ULTIMATE_SKILLS && CONFIG.ULTIMATE_SKILLS[ultimateId];
+                    const label = def ? def.name.toUpperCase() : ultimateId.toUpperCase();
+                    const textEl = badge.querySelector('.ultimate-badge-text');
+
+                    if (textEl) {
+                        textEl.textContent = label;
+                    } else {
+                        badge.textContent = label;
+                    }
+
+                    badge.style.display = 'inline-block';
+                    badge.style.color = def ? def.color : '#fff';
+
+                    // Icon element is now outside badge container
+                    if (iconEl) {
+                        if (!iconEl.dataset.errHandlerBound) {
+                            iconEl.addEventListener('error', () => {
+                                iconEl.style.display = 'none';
+                            });
+                            iconEl.dataset.errHandlerBound = '1';
+                        }
+
+                        const iconPath = (def && def.iconFile && CONFIG.ULTIMATE_ICON_BASE_PATH)
+                            ? `${CONFIG.ULTIMATE_ICON_BASE_PATH}/${def.iconFile}`
+                            : '';
+
+                        if (iconPath) {
+                            if (iconEl.dataset.src !== iconPath) {
+                                iconEl.src = iconPath;
+                                iconEl.dataset.src = iconPath;
+                            }
+                            iconEl.style.display = 'block';
+                        } else {
+                            iconEl.style.display = 'none';
+                            iconEl.removeAttribute('src');
+                            iconEl.dataset.src = '';
+                        }
+                    }
+                } else {
+                    badge.style.display = 'none';
+                    if (iconEl) iconEl.style.display = 'none';
+                }
+            }
         });
     }
 

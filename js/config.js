@@ -14,6 +14,14 @@ const CONFIG = Object.freeze({
     BLAST_RIGHT: 1900,
     BLAST_TOP: -750,
     BLAST_BOTTOM: 900,
+    // Per-map blast overrides:
+    //  - A map object in `CONFIG.MAPS` may provide `blastLeft`, `blastRight`,
+    //    `blastTop`, `blastBottom` to override these global values for that map.
+    //  - GameScene uses the map-specific bounds when present; otherwise falls
+    //    back to these global `BLAST_*` values.
+    // Recommendation: horizontal margin ~300px beyond the map canvas width;
+    // vertical: top negative margin large enough for high jumps (~-700..-850),
+    // bottom = canvasHeight + ~180 to allow safe camera framing before KO.
 
     // Physics
     GRAVITY: 0.55,
@@ -256,7 +264,7 @@ const CONFIG = Object.freeze({
     CAM_LERP: 0.07,
 
     // ---- Default map key ----
-    DEFAULT_MAP: 'naruto',
+    DEFAULT_MAP: '',
 
     // ====================================================================
     //  MAP DEFINITIONS
@@ -270,6 +278,12 @@ const CONFIG = Object.freeze({
             name: 'Hidden Leaf Village',
             canvasWidth: 1600,
             canvasHeight: 720,
+            // Map-specific blast bounds (overrides global BLAST_* if present)
+            // Horizontal margin: canvas +/- 300px; vertical top/bottom tuned for camera
+            blastLeft: -400,
+            blastRight: 2000,
+            blastTop: -750,
+            blastBottom: 1300,
             bgImagePath: 'assets/maps/naruto/bg_main.png',
             randomPlatformMovement: {
                 enabled: true,
@@ -278,20 +292,30 @@ const CONFIG = Object.freeze({
                 moveRange: 55,
             },
             platforms: [
-                { id: 'n_ground', x: 0, y: 620, w: 1600, h: 300, passThrough: false, imagePath: 'assets/maps/naruto/platforms/plat_ground.png', imageKey: 'plat_naruto_ground' },
-                { id: 'n_left_q', x: 120, y: 480, w: 200, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden' },
-                { id: 'n_left_c', x: 380, y: 360, w: 240, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
-                { id: 'n_center', x: 650, y: 280, w: 300, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_chakra.png', imageKey: 'plat_naruto_chakra' },
-                { id: 'n_right_c', x: 980, y: 360, w: 240, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden' },
-                { id: 'n_right_q', x: 1280, y: 480, w: 200, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_ninja.png', imageKey: 'plat_naruto_ninja' },
-                { id: 'n_left_high', x: 80, y: 200, w: 150, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
-                { id: 'n_right_high', x: 1370, y: 200, w: 150, h: 30, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
+                // COLLISION:  x, y, w, h  — physics only. player feet snap to y.
+                // VISUAL:      displayHeight = image height
+                //              imageAnchorY  = 0.0~1.0, which % of image aligns with y
+                //              imageOffsetY  = pixel fine-tune
+                // Example: PNG has 40% transparent top → imageAnchorY: 0.4
+                { id: 'n_ground',     x: 100,    y: 620, w: 1200, h: 500, displayHeight: 600, imageAnchorY: 0,   passThrough: false, imagePath: 'assets/maps/naruto/platforms/plat_ground.png',  imageKey: 'plat_naruto_ground'  },
+                { id: 'n_left_q',    x: 120,  y: 480, w: 200,  h: 1,   displayHeight: 50,  imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden'  },
+                { id: 'n_left_c',    x: 380,  y: 360, w: 240,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_stone.png',  imageKey: 'plat_naruto_stone'   },
+                { id: 'n_center',    x: 650,  y: 280, w: 300,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_chakra.png', imageKey: 'plat_naruto_chakra'  },
+                { id: 'n_right_c',   x: 980,  y: 360, w: 240,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden'  },
+                { id: 'n_right_q',   x: 1280, y: 480, w: 200,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_ninja.png',  imageKey: 'plat_naruto_ninja'   },
+                { id: 'n_left_high', x: 80,   y: 200, w: 150,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_stone.png',  imageKey: 'plat_naruto_stone'   },
+                { id: 'n_right_high',x: 1370, y: 200, w: 150,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_stone.png',  imageKey: 'plat_naruto_stone'   },
             ],
         },
         dragonball: {
             name: 'Hyperbolic Time Chamber',
             canvasWidth: 1600,
             canvasHeight: 720,
+            // Map-specific blast bounds
+            blastLeft: -300,
+            blastRight: 1900,
+            blastTop: -750,
+            blastBottom: 900,
             bgImagePath: 'assets/maps/dragonball/bg_main.png',
             randomPlatformMovement: {
                 enabled: true,
@@ -300,21 +324,26 @@ const CONFIG = Object.freeze({
                 moveRange: 70,
             },
             platforms: [
-                { id: 'db_ground', x: 0, y: 620, w: 1600, h: 100, passThrough: false, imagePath: 'assets/maps/dragonball/platforms/plat_ground.png', imageKey: 'plat_db_ground' },
-                { id: 'db_lower_left', x: 100, y: 500, w: 220, h: 18, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
-                { id: 'db_lower_right', x: 1280, y: 500, w: 220, h: 18, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
-                { id: 'db_left_mid', x: 150, y: 390, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
-                { id: 'db_center_low', x: 660, y: 400, w: 280, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png', imageKey: 'plat_db_energy_plat' },
-                { id: 'db_right_mid', x: 1250, y: 390, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
-                { id: 'db_left_high', x: 200, y: 280, w: 180, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
-                { id: 'db_center_high', x: 710, y: 220, w: 180, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png', imageKey: 'plat_db_energy_nexus' },
-                { id: 'db_right_high', x: 1220, y: 280, w: 180, h: 16, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_ground',       x: 0,    y: 620, w: 1600, h: 100, displayHeight: 180, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/dragonball/platforms/plat_ground.png',           imageKey: 'plat_db_ground'       },
+                { id: 'db_lower_left',   x: 100,  y: 500, w: 220,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png',      imageKey: 'plat_db_energy_cube'  },
+                { id: 'db_lower_right',  x: 1280, y: 500, w: 220,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png',      imageKey: 'plat_db_energy_cube'  },
+                { id: 'db_left_mid',     x: 150,  y: 390, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
+                { id: 'db_center_low',   x: 660,  y: 400, w: 280,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png',  imageKey: 'plat_db_energy_plat'  },
+                { id: 'db_right_mid',    x: 1250, y: 390, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
+                { id: 'db_left_high',    x: 200,  y: 280, w: 180,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
+                { id: 'db_center_high',  x: 710,  y: 220, w: 180,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png',     imageKey: 'plat_db_energy_nexus' },
+                { id: 'db_right_high',   x: 1220, y: 280, w: 180,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
             ],
         },
         fptsoftware: {
             name: 'FPT Software Arena',
             canvasWidth: 1600,
             canvasHeight: 720,
+            // Map-specific blast bounds
+            blastLeft: -300,
+            blastRight: 1900,
+            blastTop: -750,
+            blastBottom: 900,
             bgImagePath: 'assets/maps/fptsoftware/bg_main.png',
             randomPlatformMovement: {
                 enabled: true,
@@ -323,15 +352,15 @@ const CONFIG = Object.freeze({
                 moveRange: 45,
             },
             platforms: [
-                { id: 'fpt_ground', x: 0, y: 620, w: 1600, h: 100, passThrough: false, imagePath: 'assets/maps/fptsoftware/platforms/plat_ground.png', imageKey: 'plat_fpt_ground' },
-                { id: 'fpt_lower_left', x: 80, y: 520, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png', imageKey: 'plat_fpt_desk' },
-                { id: 'fpt_lower_right', x: 1320, y: 520, w: 200, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png', imageKey: 'plat_fpt_desk' },
-                { id: 'fpt_left_shelf', x: 120, y: 410, w: 180, h: 18, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
-                { id: 'fpt_center_shelf', x: 710, y: 430, w: 180, h: 18, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_server_rack.png', imageKey: 'plat_fpt_server' },
-                { id: 'fpt_right_shelf', x: 1300, y: 410, w: 180, h: 18, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
-                { id: 'fpt_left_window', x: 140, y: 320, w: 160, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
-                { id: 'fpt_center_monitor', x: 720, y: 280, w: 160, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_monitor.png', imageKey: 'plat_fpt_monitor' },
-                { id: 'fpt_right_window', x: 1300, y: 320, w: 160, h: 16, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
+                { id: 'fpt_ground',         x: 0,    y: 620, w: 1600, h: 100, displayHeight: 180, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/fptsoftware/platforms/plat_ground.png',      imageKey: 'plat_fpt_ground'  },
+                { id: 'fpt_lower_left',     x: 80,   y: 520, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png',        imageKey: 'plat_fpt_desk'    },
+                { id: 'fpt_lower_right',    x: 1320, y: 520, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png',        imageKey: 'plat_fpt_desk'    },
+                { id: 'fpt_left_shelf',     x: 120,  y: 410, w: 180,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png',       imageKey: 'plat_fpt_shelf'   },
+                { id: 'fpt_center_shelf',   x: 710,  y: 430, w: 180,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_server_rack.png', imageKey: 'plat_fpt_server'  },
+                { id: 'fpt_right_shelf',    x: 1300, y: 410, w: 180,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png',       imageKey: 'plat_fpt_shelf'   },
+                { id: 'fpt_left_window',    x: 140,  y: 320, w: 160,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png',      imageKey: 'plat_fpt_window'  },
+                { id: 'fpt_center_monitor', x: 720,  y: 280, w: 160,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_monitor.png',     imageKey: 'plat_fpt_monitor' },
+                { id: 'fpt_right_window',   x: 1300, y: 320, w: 160,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png',      imageKey: 'plat_fpt_window'  },
             ],
         },
     },
@@ -362,6 +391,7 @@ const CONFIG = Object.freeze({
         light: 'KeyJ',
         heavy: 'KeyK',
         dodge: 'KeyL',
+        drop: 'KeyF',
     },
     KEYS_P2: {
         left: 'ArrowLeft',
@@ -371,6 +401,7 @@ const CONFIG = Object.freeze({
         light: 'Numpad1',
         heavy: 'Numpad2',
         dodge: 'Numpad3',
+        drop: 'Numpad0',
     },
 
     // Bot difficulty (base)
@@ -387,6 +418,155 @@ const CONFIG = Object.freeze({
         { name: 'LEGEND', color: '#ff3d3d', shadow: 'rgba(255,61,61,0.5)', difficulty: 0.99 },
         { name: 'GHOST', color: '#aaddff', shadow: 'rgba(170,221,255,0.5)', difficulty: 0.99 },
     ],
+
+    ULTIMATE_ICON_BASE_PATH: 'assets/ultimates',
+    ULTIMATE_VIDEO_BASE_PATH: 'assets/videos',
+
+    // ======================================================================
+    //  ULTIMATE SKILLS V2 — 5 named ultimates, each fully configurable
+    // ======================================================================
+    ULTIMATE_SKILLS: {
+        default: {
+            id: 'default',
+            name: 'Power Strike',
+            description: 'Powerful forward strike',
+            color: '#ffffff',
+            glowColor: 'rgba(255,255,255,0.6)',
+            damage: 80,
+            forceStrength: 50,
+            hitboxWidth: 220,
+            hitboxHeight: 150,
+            hitboxOffsetX: 30,
+            hitboxOffsetY: -10,
+            duration: 500,
+            startDelay: 100,
+            endDelay: 300,
+            energyCost: 30,
+            knockbackDuration: 300,
+            iconFile: null,
+            enabled: true,
+        },
+        yasuo: {
+            id: 'yasuo',
+            name: 'Wind Slash',
+            description: 'Slash out wind projectile — teleport & 5-hit combo on connect',
+            color: '#88ffee',
+            glowColor: 'rgba(100,255,220,0.7)',
+            damage: 120,
+            forceStrength: 80,
+            hitboxWidth: 200,
+            hitboxHeight: 150,
+            hitboxOffsetX: 80,
+            hitboxOffsetY: 0,
+            duration: 600,
+            startDelay: 100,
+            endDelay: 400,
+            energyCost: 35,
+            knockbackDuration: 400,
+            projectileSpeed: 10,
+            projectileRange: 'full',
+            teleportToHit: true,
+            comboHits: 5,
+            comboDuration: 800,
+            iconFile: 'yasuo_ultimate.png',
+            enabled: true,
+        },
+        kamehameha: {
+            id: 'kamehameha',
+            name: 'Kamehameha',
+            description: 'Powerful energy wave',
+            color: '#44aaff',
+            glowColor: 'rgba(50,150,255,0.75)',
+            damage: 100,
+            forceStrength: 90,
+            hitboxWidth: 180,
+            hitboxHeight: 120,
+            hitboxOffsetX: 70,
+            hitboxOffsetY: -30,
+            duration: 700,
+            startDelay: 150,
+            endDelay: 450,
+            energyCost: 40,
+            knockbackDuration: 500,
+            projectileSpeed: 8,
+            projectileRange: 'full',
+            projectileWidth: 180,
+            projectileHeight: 120,
+            iconFile: 'saiyan_ultimate.png',
+            enabled: true,
+        },
+        fpt: {
+            id: 'fpt',
+            name: 'Meteor Rain',
+            description: 'Rain down 8 meteors',
+            color: '#ff8844',
+            glowColor: 'rgba(255,100,40,0.7)',
+            damage: 16,
+            forceStrength: 35,
+            startDelay: 120,
+            endDelay: 300,
+            meteorCount: 8,
+            meteorSpawnDuration: 3000,
+            meteorHitboxRadius: 60,
+            meteorSpriteFile: 'meteor.png',
+            energyCost: 45,
+            knockbackDuration: 250,
+            iconFile: 'fpt_ultimate.png',
+            enabled: true,
+        },
+        saitama: {
+            id: 'saitama',
+            name: 'Serious Punch',
+            description: 'One punch to end it all',
+            color: '#ffd700',
+            glowColor: 'rgba(255,215,0,0.85)',
+            damage: 1000,
+            forceStrength: 999,
+            startDelay: 0,
+            endDelay: 500,
+            energyCost: 50,
+            energyRefund: 25,
+            cooldown: 30000,
+            knockbackDuration: 800,
+            freezeScreenDuration: 500,
+            affectAllEnemies: true,
+            victimEnergyMultiplier: 0.5,
+            maxInstanceCount: 1,
+            rarity: 0.02,
+            videoPath: 'assets/videos/saitama_punch.mp4',
+            videoDuration: 3500,
+            enabled: true,
+            dropOnMap: true,
+            bounceOnMap: true,
+            bounceVelocityX: { min: -4, max: 4 },
+            bounceVelocityY: { min: -5, max: -2 },
+            bounceGravity: 0.3,
+            iconFile: 'saitama_ultimate.png',
+        },
+    },
+
+    // ======================================================================
+    //  SKILL DROP SYSTEM — drop on death & F/0 key to throw
+    // ======================================================================
+    SKILL_DROP: {
+        dropChanceOnDeath: 0.50,    // 50% chance fighter drops skill on KO
+        skillBoxSize: 40,
+        pickupRadius: 60,
+        dropGravity: 0.4,
+        dropBounce: 0.45,
+        maxLifetime: 60000,         // 60 s before despawn
+        mapSpawnInterval: 14000,
+        maxActiveOnMap: 3,
+
+        rarity: {
+            default:      0.40,
+            yasuo:        0.20,
+            kamehameha:   0.15,
+            fpt:          0.15,
+            saitama:      0.02,
+            // remaining ~8% → random from above pool
+        },
+    },
 });
 
 // Expose CONFIG globally for ESM modules

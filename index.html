@@ -34,6 +34,7 @@
                         <b>Player 1</b><br>
                         Move: <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>D</kbd><br>
                         Light: <kbd>J</kbd> &nbsp; Heavy: <kbd>K</kbd><br>Dodge/Dash: <kbd>L</kbd><br>
+                        Drop Ultimate: <kbd>F</kbd><br>
                         <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate: <kbd>J</kbd>+<kbd>K</kbd>
                             (Energy full)</span>
                     </div>
@@ -42,6 +43,7 @@
                         <b>Player 2</b><br>
                         Move: <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><br>
                         Light: <kbd>Num1</kbd> &nbsp; Heavy: <kbd>Num2</kbd><br>Dodge/Dash: <kbd>Num3</kbd><br>
+                        Drop Ultimate: <kbd>Num0</kbd><br>
                         <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate:
                             <kbd>Num1</kbd>+<kbd>Num2</kbd> (Energy full)</span>
                     </div>
@@ -199,6 +201,12 @@
                                 <div class="energy-fill" id="p1-energy"></div>
                             </div>
                         </div>
+                        <div class="ultimate-badge-row">
+                            <img class="ultimate-badge-icon" id="p1-ultimate-icon" alt="" style="display:none" />
+                            <div class="ultimate-badge" id="p1-ultimate-badge" style="display:none">
+                                <span class="ultimate-badge-text" id="p1-ultimate-text"></span>
+                            </div>
+                        </div>
                     </div>
                     <div class="hud-player hud-sub hidden" id="hud-p3">
                         <span class="hud-name p3" id="p3-name">ALLY</span>
@@ -227,6 +235,12 @@
                             <div class="energy-label">ENERGY</div>
                             <div class="energy-track">
                                 <div class="energy-fill p2" id="p2-energy"></div>
+                            </div>
+                        </div>
+                        <div class="ultimate-badge-row">
+                            <img class="ultimate-badge-icon" id="p2-ultimate-icon" alt="" style="display:none" />
+                            <div class="ultimate-badge" id="p2-ultimate-badge" style="display:none">
+                                <span class="ultimate-badge-text" id="p2-ultimate-text"></span>
                             </div>
                         </div>
                     </div>

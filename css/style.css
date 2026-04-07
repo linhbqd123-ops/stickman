@@ -624,8 +624,70 @@ kbd {
     }
 }
 
+/* ── V2 Ultimate badge row (icon outside badge) ── */
+.ultimate-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+}
+
+.ultimate-badge-icon {
+    width: 25px;
+    height: 25px;
+    min-width: 25px;
+    min-height: 25px;
+    max-width: 25px;
+    max-height: 25px;
+    object-fit: contain;
+    border-radius: 1px;
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.50);
+}
+
+/* ── Ultimate badge text only ── */
+.ultimate-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: inline-block;
+    padding: 3px 7px;
+    background: rgba(0, 0, 0, 0.62);
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    text-shadow: 0 0 4px currentColor;
+    animation: badge-glow 2.6s ease-in-out infinite;
+}
+
+.ultimate-badge-text {
+    line-height: 1;
+    display: inline;
+}
+
+@keyframes badge-glow {
+    0%, 100% {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 2px rgba(0, 0, 0, 0.22);
+    }
+    50% {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 0 4px rgba(0, 0, 0, 0.32);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ultimate-badge {
+        animation: none;
+    }
+}
+
 .hud-player.right .energy-bar-wrap {
     flex-direction: row-reverse;
+}
+
+.hud-player.right .ultimate-badge {
+    margin-left: auto;
 }
 
 /* ── HUD team columns (4-player 2v2 layout) ── */
