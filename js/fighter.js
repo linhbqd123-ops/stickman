@@ -151,6 +151,8 @@ class Fighter {
 
         if (this.state === 'dead') return;
 
+        this._handleUltimateDiscard();
+
         if (this.atkTimer > 0 && this.atkDuration) {
             this.atkProgress = 1 - (this.atkTimer / this.atkDuration);
         } else {
@@ -342,6 +344,12 @@ class Fighter {
     // =========================================================
     //  Dodge / Dash / Attack
     // =========================================================
+    _handleUltimateDiscard() {
+        if (!this.isPlayer || !this.collectedUltimate) return;
+        if (!this._risingEdge('drop')) return;
+        this.discardUltimate();
+    }
+
     _handleActions(dt, opponents, particles, C) {
         const inp = this.input;
 
@@ -364,15 +372,8 @@ class Fighter {
 
         const lightTrig = this._risingEdge('light');
         const heavyTrig = this._risingEdge('heavy');
-        const dropTrig = this._risingEdge('drop');
 
-        // Drop current V2 ultimate skill (F / Numpad0)
-        if (dropTrig && this.collectedUltimate) {
-            if (window.SkillDropSystem) SkillDropSystem.dropFromFighter(this);
-            return;
-        }
-
-        // V2 Ultimate: requires a collected V2 ultimate (light+heavy at full energy)
+        // V2 Ultimate: requires light+heavy at full energy (J+K / Numpad1+Numpad2)
         if (this.collectedUltimate && this.energy >= CONFIG.ENERGY.MAX && this.ultimateCooldown <= 0) {
             const ultiTrig = (lightTrig && inp.heavy) || (heavyTrig && inp.light) || (lightTrig && heavyTrig);
             if (ultiTrig) {
@@ -613,7 +614,14 @@ class Fighter {
     dropUltimate() {
         const id = this.collectedUltimate;
         this.collectedUltimate = null;
-        return id;  // return id so caller can spawn a SkillBox
+        return id;  // return id so scene-level code can spawn a SkillBox
+    }
+
+    discardUltimate() {
+        if (!this.collectedUltimate) return null;
+        const id = this.collectedUltimate;
+        this.collectedUltimate = null;
+        return id;
     }
 
     _fireUltimateV2(opponents, particles, C) {
@@ -707,8 +715,8 @@ class Fighter {
             }
             // Damage number popup
             const dmgColor = atk.type === 'ultimate' ? '#ff4444'
-                           : atk.type === 'heavy'   ? '#ffaa00'
-                           : '#ffd700';
+                : atk.type === 'heavy' ? '#ffaa00'
+                    : '#ffd700';
             GameEffects.spawnDmgNumber && GameEffects.spawnDmgNumber(
                 opp.x, opp.y - 60, atk.dmg || 5, dmgColor);
         }

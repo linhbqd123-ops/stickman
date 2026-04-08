@@ -28,7 +28,7 @@ class GameScene extends Phaser.Scene {
         this.netConfig = data.netConfig || null;
         // Online networking state (reset on each scene start)
         this._latestSnapshot = null;
-        this._newSnapshot    = null;   // newly arrived snapshot, consumed once per frame
+        this._newSnapshot = null;   // newly arrived snapshot, consumed once per frame
         this._netFrameTick = 0;
         this._lastSentInput = null;
         this._prevSnapshot = null;  // delta compression baseline
@@ -96,10 +96,10 @@ class GameScene extends Phaser.Scene {
         // Map can define: blastLeft, blastRight, blastTop, blastBottom
         // If absent, fall back to global CONFIG.BLAST_* values.
         this._blastBounds = {
-            left:  (this._mapDef.blastLeft !== undefined)  ? this._mapDef.blastLeft  : CONFIG.BLAST_LEFT,
+            left: (this._mapDef.blastLeft !== undefined) ? this._mapDef.blastLeft : CONFIG.BLAST_LEFT,
             right: (this._mapDef.blastRight !== undefined) ? this._mapDef.blastRight : CONFIG.BLAST_RIGHT,
-            top:   (this._mapDef.blastTop !== undefined)   ? this._mapDef.blastTop   : CONFIG.BLAST_TOP,
-            bottom:(this._mapDef.blastBottom !== undefined)? this._mapDef.blastBottom: CONFIG.BLAST_BOTTOM,
+            top: (this._mapDef.blastTop !== undefined) ? this._mapDef.blastTop : CONFIG.BLAST_TOP,
+            bottom: (this._mapDef.blastBottom !== undefined) ? this._mapDef.blastBottom : CONFIG.BLAST_BOTTOM,
         };
 
         // ---- State ----
@@ -976,12 +976,12 @@ class GameScene extends Phaser.Scene {
         if (!def) return;
 
         switch (id) {
-            case 'default':    this._ultiDefault(fighter, opponents, particles, def); break;
-            case 'yasuo':      this._ultiYasuo(fighter, opponents, particles, def); break;
+            case 'default': this._ultiDefault(fighter, opponents, particles, def); break;
+            case 'yasuo': this._ultiYasuo(fighter, opponents, particles, def); break;
             case 'kamehameha': this._ultiKamehameha(fighter, opponents, particles, def); break;
-            case 'fpt':        this._ultiFPT(fighter, opponents, particles, def); break;
-            case 'saitama':    this._ultiSaitama(fighter, opponents, particles, def); break;
-            default:           this._ultiDefault(fighter, opponents, particles, def); break;
+            case 'fpt': this._ultiFPT(fighter, opponents, particles, def); break;
+            case 'saitama': this._ultiSaitama(fighter, opponents, particles, def); break;
+            default: this._ultiDefault(fighter, opponents, particles, def); break;
         }
     }
 
@@ -2038,20 +2038,20 @@ class GameScene extends Phaser.Scene {
         const key = `stageBg_${this.mapKey}`;
 
         if (!this.textures.exists(key)) {
-            const ct  = this.textures.createCanvas(key, W, H);
+            const ct = this.textures.createCanvas(key, W, H);
             const ctx = ct.getContext();
 
             // Sky gradient — colours vary by map
             const skyColors = {
-                naruto:      ['#1a0800', '#2a1000', '#1a0500'],
-                dragonball:  ['#080018', '#10002a', '#0d001e'],
+                naruto: ['#1a0800', '#2a1000', '#1a0500'],
+                dragonball: ['#080018', '#10002a', '#0d001e'],
                 fptsoftware: ['#000a14', '#001428', '#000814'],
             };
             const [c0, c1, c2] = skyColors[this.mapKey] || ['#080818', '#0d0d28', '#120820'];
             const g = ctx.createLinearGradient(0, 0, 0, H);
-            g.addColorStop(0,   c0);
+            g.addColorStop(0, c0);
             g.addColorStop(0.5, c1);
-            g.addColorStop(1,   c2);
+            g.addColorStop(1, c2);
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, W, H);
 
@@ -2059,8 +2059,8 @@ class GameScene extends Phaser.Scene {
             ctx.fillStyle = 'rgba(255,255,255,0.55)';
             for (let i = 0; i < 80; i++) {
                 const sx = ((i * 173 + 37) % W);
-                const sy = ((i * 97  + 19) % (H * 0.55));
-                const r  = (i % 3 === 0) ? 1.2 : 0.6;
+                const sy = ((i * 97 + 19) % (H * 0.55));
+                const r = (i % 3 === 0) ? 1.2 : 0.6;
                 ctx.globalAlpha = 0.3 + (i % 5) * 0.1;
                 ctx.beginPath();
                 ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -2070,16 +2070,16 @@ class GameScene extends Phaser.Scene {
 
             // City silhouette — colour matches map theme
             const silColors = {
-                naruto:      'rgba(30,12,0,0.8)',
-                dragonball:  'rgba(12,0,28,0.8)',
+                naruto: 'rgba(30,12,0,0.8)',
+                dragonball: 'rgba(12,0,28,0.8)',
                 fptsoftware: 'rgba(0,10,20,0.8)',
             };
             const buildings = [
-                { x: 0,    w: 70, h: 220 }, { x: 80,   w: 45, h: 170 }, { x: 135,  w: 90, h: 270 },
-                { x: 235,  w: 60, h: 200 }, { x: 305,  w: 38, h: 145 }, { x: 355,  w: 75, h: 235 },
-                { x: 450,  w: 55, h: 185 }, { x: 515,  w: 95, h: 280 }, { x: 625,  w: 50, h: 160 },
-                { x: 685,  w: 70, h: 225 }, { x: 770,  w: 55, h: 195 }, { x: 840,  w: 88, h: 250 },
-                { x: 940,  w: 60, h: 175 }, { x: 1010, w: 50, h: 155 }, { x: 1075, w: 80, h: 240 },
+                { x: 0, w: 70, h: 220 }, { x: 80, w: 45, h: 170 }, { x: 135, w: 90, h: 270 },
+                { x: 235, w: 60, h: 200 }, { x: 305, w: 38, h: 145 }, { x: 355, w: 75, h: 235 },
+                { x: 450, w: 55, h: 185 }, { x: 515, w: 95, h: 280 }, { x: 625, w: 50, h: 160 },
+                { x: 685, w: 70, h: 225 }, { x: 770, w: 55, h: 195 }, { x: 840, w: 88, h: 250 },
+                { x: 940, w: 60, h: 175 }, { x: 1010, w: 50, h: 155 }, { x: 1075, w: 80, h: 240 },
                 { x: 1165, w: 55, h: 180 }, { x: 1230, w: 50, h: 160 },
             ];
             const gy = this._mapDef.platforms[0].y;
@@ -2172,9 +2172,9 @@ class GameScene extends Phaser.Scene {
         for (const f of this.fighters) {
             if (f.state !== 'wallgrab' || !f.wallPlatform) continue;
 
-            const plat   = f.wallPlatform;
+            const plat = f.wallPlatform;
             const isLeft = (f.wallDir > 0);  // fighter on the LEFT-SIDE face of platform
-            const wallX  = isLeft ? plat.x : plat.x + plat.w;
+            const wallX = isLeft ? plat.x : plat.x + plat.w;
 
             // Vertical contact band: centre on fighter body height, not feet
             const contactY = Phaser.Math.Clamp(
@@ -2219,10 +2219,10 @@ class GameScene extends Phaser.Scene {
             const sparkCount = 5;
             g.lineStyle(1, fc, pulse * 0.40);
             for (let si = 0; si < sparkCount; si++) {
-                const a   = (si / sparkCount) * Math.PI * 2 + pt;
-                const sr  = 16 + Math.sin(pt * 6 + si) * 4;
-                const ex  = wallX + Math.cos(a) * sr;
-                const ey  = (contactY - 18) + Math.sin(a) * sr;
+                const a = (si / sparkCount) * Math.PI * 2 + pt;
+                const sr = 16 + Math.sin(pt * 6 + si) * 4;
+                const ex = wallX + Math.cos(a) * sr;
+                const ey = (contactY - 18) + Math.sin(a) * sr;
                 g.beginPath();
                 g.moveTo(wallX, contactY - 18);
                 g.lineTo(ex, ey);
@@ -2258,7 +2258,7 @@ class GameScene extends Phaser.Scene {
             // Client receives authoritative state from host
             Net.onStateReceived = snapshots => {
                 this._latestSnapshot = snapshots;  // keep ref for potential debug
-                this._newSnapshot    = snapshots;  // consumed once in update()
+                this._newSnapshot = snapshots;  // consumed once in update()
             };
             Net.onHostDisconnect = () => this._onOnlineDisconnect();
         }

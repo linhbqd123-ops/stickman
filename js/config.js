@@ -297,14 +297,14 @@ const CONFIG = Object.freeze({
                 //              imageAnchorY  = 0.0~1.0, which % of image aligns with y
                 //              imageOffsetY  = pixel fine-tune
                 // Example: PNG has 40% transparent top → imageAnchorY: 0.4
-                { id: 'n_ground',     x: 100,    y: 620, w: 1200, h: 500, displayHeight: 600, imageAnchorY: 0,   passThrough: false, imagePath: 'assets/maps/naruto/platforms/plat_ground.png',  imageKey: 'plat_naruto_ground'  },
-                { id: 'n_left_q',    x: 120,  y: 480, w: 200,  h: 1,   displayHeight: 50,  imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden'  },
-                { id: 'n_left_c',    x: 380,  y: 360, w: 240,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_stone.png',  imageKey: 'plat_naruto_stone'   },
-                { id: 'n_center',    x: 650,  y: 280, w: 300,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_chakra.png', imageKey: 'plat_naruto_chakra'  },
-                { id: 'n_right_c',   x: 980,  y: 360, w: 240,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden'  },
-                { id: 'n_right_q',   x: 1280, y: 480, w: 200,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_ninja.png',  imageKey: 'plat_naruto_ninja'   },
-                { id: 'n_left_high', x: 80,   y: 200, w: 150,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_stone.png',  imageKey: 'plat_naruto_stone'   },
-                { id: 'n_right_high',x: 1370, y: 200, w: 150,  h: 1,   displayHeight: 100, imageAnchorY: 0.5,   passThrough: true,  imagePath: 'assets/maps/naruto/platforms/plat_stone.png',  imageKey: 'plat_naruto_stone'   },
+                { id: 'n_ground', x: 100, y: 620, w: 1200, h: 500, displayHeight: 600, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/naruto/platforms/plat_ground.png', imageKey: 'plat_naruto_ground' },
+                { id: 'n_left_q', x: 120, y: 480, w: 200, h: 1, displayHeight: 50, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden' },
+                { id: 'n_left_c', x: 380, y: 360, w: 240, h: 1, displayHeight: 100, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
+                { id: 'n_center', x: 650, y: 280, w: 300, h: 1, displayHeight: 100, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_chakra.png', imageKey: 'plat_naruto_chakra' },
+                { id: 'n_right_c', x: 980, y: 360, w: 240, h: 1, displayHeight: 100, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_wooden.png', imageKey: 'plat_naruto_wooden' },
+                { id: 'n_right_q', x: 1280, y: 480, w: 200, h: 1, displayHeight: 100, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_ninja.png', imageKey: 'plat_naruto_ninja' },
+                { id: 'n_left_high', x: 80, y: 200, w: 150, h: 1, displayHeight: 100, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
+                { id: 'n_right_high', x: 1370, y: 200, w: 150, h: 1, displayHeight: 100, imageAnchorY: 0.5, passThrough: true, imagePath: 'assets/maps/naruto/platforms/plat_stone.png', imageKey: 'plat_naruto_stone' },
             ],
         },
         dragonball: {
@@ -324,15 +324,15 @@ const CONFIG = Object.freeze({
                 moveRange: 70,
             },
             platforms: [
-                { id: 'db_ground',       x: 0,    y: 620, w: 1600, h: 100, displayHeight: 180, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/dragonball/platforms/plat_ground.png',           imageKey: 'plat_db_ground'       },
-                { id: 'db_lower_left',   x: 100,  y: 500, w: 220,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png',      imageKey: 'plat_db_energy_cube'  },
-                { id: 'db_lower_right',  x: 1280, y: 500, w: 220,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png',      imageKey: 'plat_db_energy_cube'  },
-                { id: 'db_left_mid',     x: 150,  y: 390, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
-                { id: 'db_center_low',   x: 660,  y: 400, w: 280,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png',  imageKey: 'plat_db_energy_plat'  },
-                { id: 'db_right_mid',    x: 1250, y: 390, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
-                { id: 'db_left_high',    x: 200,  y: 280, w: 180,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
-                { id: 'db_center_high',  x: 710,  y: 220, w: 180,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png',     imageKey: 'plat_db_energy_nexus' },
-                { id: 'db_right_high',   x: 1220, y: 280, w: 180,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png',          imageKey: 'plat_db_ki_base'      },
+                { id: 'db_ground', x: 0, y: 620, w: 1600, h: 100, displayHeight: 180, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/dragonball/platforms/plat_ground.png', imageKey: 'plat_db_ground' },
+                { id: 'db_lower_left', x: 100, y: 500, w: 220, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_lower_right', x: 1280, y: 500, w: 220, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_left_mid', x: 150, y: 390, w: 200, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_center_low', x: 660, y: 400, w: 280, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png', imageKey: 'plat_db_energy_plat' },
+                { id: 'db_right_mid', x: 1250, y: 390, w: 200, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_left_high', x: 200, y: 280, w: 180, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_center_high', x: 710, y: 220, w: 180, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png', imageKey: 'plat_db_energy_nexus' },
+                { id: 'db_right_high', x: 1220, y: 280, w: 180, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
             ],
         },
         fptsoftware: {
@@ -352,15 +352,15 @@ const CONFIG = Object.freeze({
                 moveRange: 45,
             },
             platforms: [
-                { id: 'fpt_ground',         x: 0,    y: 620, w: 1600, h: 100, displayHeight: 180, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/fptsoftware/platforms/plat_ground.png',      imageKey: 'plat_fpt_ground'  },
-                { id: 'fpt_lower_left',     x: 80,   y: 520, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png',        imageKey: 'plat_fpt_desk'    },
-                { id: 'fpt_lower_right',    x: 1320, y: 520, w: 200,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png',        imageKey: 'plat_fpt_desk'    },
-                { id: 'fpt_left_shelf',     x: 120,  y: 410, w: 180,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png',       imageKey: 'plat_fpt_shelf'   },
-                { id: 'fpt_center_shelf',   x: 710,  y: 430, w: 180,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_server_rack.png', imageKey: 'plat_fpt_server'  },
-                { id: 'fpt_right_shelf',    x: 1300, y: 410, w: 180,  h: 18,  displayHeight: 45,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png',       imageKey: 'plat_fpt_shelf'   },
-                { id: 'fpt_left_window',    x: 140,  y: 320, w: 160,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png',      imageKey: 'plat_fpt_window'  },
-                { id: 'fpt_center_monitor', x: 720,  y: 280, w: 160,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_monitor.png',     imageKey: 'plat_fpt_monitor' },
-                { id: 'fpt_right_window',   x: 1300, y: 320, w: 160,  h: 16,  displayHeight: 40,  imageAnchorY: 0, passThrough: true,  imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png',      imageKey: 'plat_fpt_window'  },
+                { id: 'fpt_ground', x: 0, y: 620, w: 1600, h: 100, displayHeight: 180, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/fptsoftware/platforms/plat_ground.png', imageKey: 'plat_fpt_ground' },
+                { id: 'fpt_lower_left', x: 80, y: 520, w: 200, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png', imageKey: 'plat_fpt_desk' },
+                { id: 'fpt_lower_right', x: 1320, y: 520, w: 200, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_desk.png', imageKey: 'plat_fpt_desk' },
+                { id: 'fpt_left_shelf', x: 120, y: 410, w: 180, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
+                { id: 'fpt_center_shelf', x: 710, y: 430, w: 180, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_server_rack.png', imageKey: 'plat_fpt_server' },
+                { id: 'fpt_right_shelf', x: 1300, y: 410, w: 180, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
+                { id: 'fpt_left_window', x: 140, y: 320, w: 160, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
+                { id: 'fpt_center_monitor', x: 720, y: 280, w: 160, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_monitor.png', imageKey: 'plat_fpt_monitor' },
+                { id: 'fpt_right_window', x: 1300, y: 320, w: 160, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
             ],
         },
     },
@@ -546,7 +546,7 @@ const CONFIG = Object.freeze({
     },
 
     // ======================================================================
-    //  SKILL DROP SYSTEM — drop on death & F/0 key to throw
+    //  SKILL DROP SYSTEM — box drops on death; F/0 discards held ultimate
     // ======================================================================
     SKILL_DROP: {
         dropChanceOnDeath: 0.50,    // 50% chance fighter drops skill on KO
@@ -559,11 +559,11 @@ const CONFIG = Object.freeze({
         maxActiveOnMap: 3,
 
         rarity: {
-            default:      0.40,
-            yasuo:        0.20,
-            kamehameha:   0.15,
-            fpt:          0.15,
-            saitama:      0.02,
+            default: 0.40,
+            yasuo: 0.20,
+            kamehameha: 0.15,
+            fpt: 0.15,
+            saitama: 0.02,
             // remaining ~8% → random from above pool
         },
     },
