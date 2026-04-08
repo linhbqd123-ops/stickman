@@ -45,6 +45,13 @@ class GameScene extends Phaser.Scene {
         this._netFullStateTimer = 0;
         this._netStateSeq = 0;
         this._lastRecvStateSeq = 0;
+        this._saitamaCastSeq = 0;
+        this._netSaitamaCast = null;
+        this._lastHandledSaitamaCastSeq = 0;
+        this._specialSpawnScriptStarted = false;
+        this._matchElapsedMs = 0;
+        this._pendingInputEdges = { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
+        this._inputEdgeTotals = { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
     }
 
     // =========================================================
@@ -228,9 +235,9 @@ class GameScene extends Phaser.Scene {
         this.game.events.on('game:toggle-guide', this._togglePauseGuide, this);
         this.game.events.on('game:exit', this._exitToMenu, this);
 
-        // ---- V2 skill-box spawn timer (first ~8 s in, then every configured interval) ----
         const authoritativeWorld = !this.online || Net.role === 'host';
         if (authoritativeWorld) {
+            // Keep periodic random spawns for long matches.
             const skillSpawnInterval = CONFIG.SKILL_DROP.mapSpawnInterval || CONFIG.SKILL_SPAWN_INTERVAL;
             this.time.addEvent({
                 delay: skillSpawnInterval,
@@ -246,6 +253,8 @@ class GameScene extends Phaser.Scene {
         this.time.delayedCall(1000, () => {
             this.roundPaused = false;
             Audio.playRoundStart();
+
+            if (authoritativeWorld) this._startSpecialSpawnScript();
         });
 
         // ---- Online — wire network callbacks for the match ----
@@ -259,9 +268,23 @@ class GameScene extends Phaser.Scene {
         // Always render (so pause screen shows correctly)
         this._render();
 
-        if (this.roundPaused || this.isPaused || this.matchOver) return;
+        const blocked = this.roundPaused || this.isPaused || this.matchOver;
+        if (blocked) {
+            if (this.online && Net.role === 'client') {
+                if (this._newSnapshot) {
+                    const payload = this._newSnapshot;
+                    if (payload.world) this._applyWorldSnapshot(payload.world);
+                    if (payload.fighters) this._applySnapshot(payload.fighters);
+                    this._newSnapshot = null;
+                }
+            } else if (this.online && Net.role === 'host') {
+                this._hostBroadcastNetState(delta);
+            }
+            return;
+        }
 
         this._updateInput();
+        this._matchElapsedMs += delta;
         const isClientOnline = this.online && Net.role === 'client';
 
         if (isClientOnline) {
@@ -290,25 +313,7 @@ class GameScene extends Phaser.Scene {
             this._checkMatchOver();
 
             if (this.online && Net.role === 'host') {
-                this._netStateAccum += delta;
-                this._netFullStateTimer += delta;
-
-                while (this._netStateAccum >= this._netStateInterval) {
-                    this._netStateAccum -= this._netStateInterval;
-                    if (this._netFullStateTimer >= this._forceFullStateEveryMs) {
-                        this._prevSnapshot = null; // periodic hard refresh baseline
-                        this._netFullStateTimer = 0;
-                    }
-
-                    const fighters = this._makeSnapshot();
-                    const world = this._makeWorldSnapshot();
-                    Net.broadcastState({
-                        seq: ++this._netStateSeq,
-                        t: Math.round(this.time.now || 0),
-                        fighters,
-                        world,
-                    });
-                }
+                this._hostBroadcastNetState(delta);
             }
         }
 
@@ -365,6 +370,7 @@ class GameScene extends Phaser.Scene {
             Net.onHostDisconnect = null;
             Net.onError = null;
         }
+        this._netSaitamaCast = null;
     }
 
     // =========================================================
@@ -441,8 +447,9 @@ class GameScene extends Phaser.Scene {
             players.forEach((p, i) => {
                 const sp = SPAWN_POS[i] || SPAWN_POS[i % 2];
                 const isLocal = p.id === (Net.localPlayer?.id ?? 1);
+                const team = (mode === 'ffa') ? (10 + i) : (p.team ?? (i % 2));
                 const f = make(i, sp.x, sp.fr, isLocal, C.KEYS_P1,
-                    PRESETS[i % 4], p.team ?? (i % 2));
+                    PRESETS[i % 4], team);
                 f._name = p.name;
                 f._netPlayerId = p.id;
                 f._isLocalNet = isLocal;
@@ -504,7 +511,7 @@ class GameScene extends Phaser.Scene {
                 this.fighters[2]?._name, this.fighters[3]?._name
             );
         }
-        const modeLabels = { '1v1': '2P VS', '1vAI': 'VS AI', '2v2': '2v2 TEAM', 'tournament': 'TOWER' };
+        const modeLabels = { '1v1': '2P VS', '1vAI': 'VS AI', '2v2': '2v2 TEAM', 'ffa': 'FREE FOR ALL', 'tournament': 'TOWER' };
         let modeLabel = modeLabels[mode] || mode;
         if (mode === '1vAI') {
             const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
@@ -512,7 +519,7 @@ class GameScene extends Phaser.Scene {
             const diffLabel = (preset && preset.label) ? preset.label : this.aiDifficulty.toUpperCase();
             modeLabel = `${modeLabel} • ${diffLabel}`;
         }
-        UI.setModeTag(this.online ? 'ONLINE' : modeLabel);
+        UI.setModeTag(this.online ? `ONLINE • ${modeLabel}` : modeLabel);
         if (mode === 'tournament' && this.tournament && this.tournament.roundLabel) {
             UI.setRoundLabel(this.tournament.roundLabel);
         } else {
@@ -704,7 +711,23 @@ class GameScene extends Phaser.Scene {
             if (!f.isPlayer) continue;
             const km = (f._keyMap === CONFIG.KEYS_P2) ? this._p2Keys : this._p1Keys;
             f.setInput(this._readKeyMap(km));
+
+            if (this.online && Net.role === 'client' && f._isLocalNet) {
+                this._collectLocalInputEdges(km);
+            }
         }
+    }
+
+    _collectLocalInputEdges(phaserKeyMap) {
+        if (!phaserKeyMap || !Phaser || !Phaser.Input || !Phaser.Input.Keyboard) return;
+        const KD = Phaser.Input.Keyboard.JustDown;
+        const p = this._pendingInputEdges;
+        const t = this._inputEdgeTotals;
+        if (KD(phaserKeyMap.up)) { p.up++; t.up++; }
+        if (KD(phaserKeyMap.light)) { p.light++; t.light++; }
+        if (KD(phaserKeyMap.heavy)) { p.heavy++; t.heavy++; }
+        if (KD(phaserKeyMap.dodge)) { p.dodge++; t.dodge++; }
+        if (KD(phaserKeyMap.drop)) { p.drop++; t.drop++; }
     }
 
     _updateBots(delta) {
@@ -844,19 +867,61 @@ class GameScene extends Phaser.Scene {
         return 'ultimate_meteor_shared';
     }
 
-    _spawnRandomSkillBox() {
+    _startSpecialSpawnScript() {
+        if (this._specialSpawnScriptStarted) return;
+        this._specialSpawnScriptStarted = true;
+
+        // At 5s after fight starts: spawn 2 random skills (excluding Saitama).
+        this.time.delayedCall(5000, () => {
+            if (this.matchOver) return;
+            this._spawnRandomSkillBox({ excludeSaitama: true });
+            this._spawnRandomSkillBox({ excludeSaitama: true });
+        });
+
+        // At 60s after fight starts: guarantee a Saitama box appears.
+        this.time.delayedCall(60000, () => {
+            if (this.matchOver) return;
+            this._forceSpawnSaitamaBox();
+        });
+    }
+
+    _pickRandomSkillSpawnPoint() {
+        const plats = this._platforms.platforms;
+        const pool = plats.length > 1 ? plats.slice(1) : plats;
+        if (!pool.length) return null;
+        const plat = pool[Math.floor(Math.random() * pool.length)];
+        return {
+            x: plat.x + plat.w * (0.20 + Math.random() * 0.60),
+            y: plat.y - (CONFIG.SKILL_DROP.skillBoxSize * 0.65),
+        };
+    }
+
+    _spawnRandomSkillBox(options = {}) {
+        const { excludeSaitama = false } = options;
         if (this.matchOver) return;
         const D = CONFIG.SKILL_DROP;
         if (this._skillBoxes.length >= (D.maxActiveOnMap || 3)) return;
 
-        const plats = this._platforms.platforms;
-        const pool = plats.length > 1 ? plats.slice(1) : plats;
-        if (!pool.length) return;
-        const plat = pool[Math.floor(Math.random() * pool.length)];
+        const point = this._pickRandomSkillSpawnPoint();
+        if (!point) return;
+        this._spawnSkillBox(point.x, point.y, this._randomUltimateId(excludeSaitama));
+    }
 
-        const x = plat.x + plat.w * (0.20 + Math.random() * 0.60);
-        const y = plat.y - (D.skillBoxSize * 0.65);
-        this._spawnSkillBox(x, y, this._randomUltimateId());
+    _forceSpawnSaitamaBox() {
+        const hasOnMap = this._skillBoxes.some(b => b.ultimateId === 'saitama');
+        const hasHolder = this.fighters.some(f => f.collectedUltimate === 'saitama');
+        if (hasOnMap || hasHolder) return;
+
+        const maxActive = (CONFIG.SKILL_DROP && CONFIG.SKILL_DROP.maxActiveOnMap) || 3;
+        if (this._skillBoxes.length >= maxActive) {
+            const idx = this._skillBoxes.findIndex(b => b.ultimateId !== 'saitama');
+            const rm = idx >= 0 ? this._skillBoxes.splice(idx, 1)[0] : this._skillBoxes.shift();
+            if (rm) this._destroySkillBoxVisual(rm);
+        }
+
+        const point = this._pickRandomSkillSpawnPoint();
+        if (!point) return;
+        this._spawnSkillBox(point.x, point.y, 'saitama');
     }
 
     _destroySkillBoxVisual(box) {
@@ -915,10 +980,11 @@ class GameScene extends Phaser.Scene {
         this._spawnSkillBox(fighter.x, fighter.y - 30, id);
     }
 
-    _randomUltimateId() {
+    _randomUltimateId(excludeSaitama = false) {
         const D = CONFIG.SKILL_DROP;
         const rarityEntries = Object.entries(D.rarity || {});
         const candidates = [];
+        const saitamaLockedByTime = this._matchElapsedMs < 60000;
 
         const hasSaitamaOnMap = this._skillBoxes.some(b => b.ultimateId === 'saitama');
         const hasSaitamaHolder = this.fighters.some(f => f.collectedUltimate === 'saitama');
@@ -926,6 +992,7 @@ class GameScene extends Phaser.Scene {
         for (const [id, chance] of rarityEntries) {
             const def = CONFIG.ULTIMATE_SKILLS && CONFIG.ULTIMATE_SKILLS[id];
             if (!def || !def.enabled || !chance || chance <= 0) continue;
+            if ((excludeSaitama || saitamaLockedByTime) && id === 'saitama') continue;
             if (id === 'saitama' && (hasSaitamaOnMap || hasSaitamaHolder)) continue;
             candidates.push({ id, chance });
         }
@@ -1379,6 +1446,16 @@ class GameScene extends Phaser.Scene {
         const freezeDur = def.freezeScreenDuration || 500;
         const castDuration = freezeDur + (def.videoDuration || 3200) + (def.endDelay || 0);
 
+        if (this.online && Net.role === 'host') {
+            this._netSaitamaCast = {
+                seq: ++this._saitamaCastSeq,
+                owner: fighter ? fighter._netPlayerId : null,
+                freezeDur,
+                startDelay: def.startDelay || 0,
+                videoDuration: def.videoDuration || 3200,
+            };
+        }
+
         this._lockUltimateAnimation(fighter, 'ultimate', castDuration);
 
         // Freeze all fighters
@@ -1396,6 +1473,7 @@ class GameScene extends Phaser.Scene {
                 this._overlayGfx.clear();
                 if (this._saitamaText) this._saitamaText.setVisible(false);
                 this._applySaitamaStrike(fighter, opponents, particles, def);
+                if (this.online && Net.role === 'host') this._netSaitamaCast = null;
             });
         });
     }
@@ -2002,6 +2080,28 @@ class GameScene extends Phaser.Scene {
         if (this.matchOver) return;
         const mode = this.mode;
 
+        if (mode === 'ffa') {
+            const alive = this.fighters.filter(f => f.stocks > 0);
+            if (alive.length > 1) return;
+
+            this.matchOver = true;
+            this.roundPaused = true;
+
+            const winner = alive[0] || null;
+            const title = winner ? `KO! ${winner._name} WINS!` : 'NO CONTEST';
+            const local = this.fighters.find(f => f._isLocalNet);
+            const headline = winner && local && winner === local ? 'VICTORY!' : 'DEFEAT!';
+
+            this._showResult(
+                headline,
+                title,
+                () => this._restartMatch(),
+                () => this._exitToMenu(),
+                { continueLabel: 'REMATCH', menuLabel: 'LOBBY' }
+            );
+            return;
+        }
+
         if (mode === '2v2') {
             const t0Dead = this.fighters.filter(f => f.team === 0).every(f => f.stocks <= 0);
             const t1Dead = this.fighters.filter(f => f.team === 1).every(f => f.stocks <= 0);
@@ -2426,11 +2526,33 @@ class GameScene extends Phaser.Scene {
     //  Online — callbacks, snapshot, input relay
     // =========================================================
 
+    _hostBroadcastNetState(delta) {
+        this._netStateAccum += delta;
+        this._netFullStateTimer += delta;
+
+        while (this._netStateAccum >= this._netStateInterval) {
+            this._netStateAccum -= this._netStateInterval;
+            if (this._netFullStateTimer >= this._forceFullStateEveryMs) {
+                this._prevSnapshot = null; // periodic hard refresh baseline
+                this._netFullStateTimer = 0;
+            }
+
+            const fighters = this._makeSnapshot();
+            const world = this._makeWorldSnapshot();
+            Net.broadcastState({
+                seq: ++this._netStateSeq,
+                t: Math.round(this.time.now || 0),
+                fighters,
+                world,
+            });
+        }
+    }
+
     /** Wire Net callbacks at the start of each online match. */
     _setupOnlineCallbacks() {
         if (Net.role === 'host') {
             // Host receives input events from every client
-            Net.onInputReceived = (pid, input) => {
+            Net.onInputReceived = (pid, input, edges) => {
                 const f = this.fighters.find(f => f._netPlayerId === pid);
                 if (!f || f._isLocalNet) return;
                 // Detect rising edges at receipt time and store them on the fighter
@@ -2439,8 +2561,27 @@ class GameScene extends Phaser.Scene {
                 // live input state — if the key is newly pressed this packet, it's a
                 // rising edge. The counter lets two rapid presses (double-jump) both
                 // be processed on successive host update ticks.
+                const isTotalMode = !!(edges && edges._mode === 'total');
+                if (isTotalMode && !f._netEdgeSeen) {
+                    f._netEdgeSeen = { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
+                }
+
                 for (const k of ['up', 'light', 'heavy', 'dodge', 'drop']) {
-                    if (!f.input[k] && input[k]) f['_netRise_' + k] = (f['_netRise_' + k] || 0) + 1;
+                    if (isTotalMode) {
+                        const total = Math.max(0, Number(edges[k]) || 0);
+                        const seen = Math.max(0, Number(f._netEdgeSeen[k]) || 0);
+                        if (total > seen) {
+                            f['_netRise_' + k] = (f['_netRise_' + k] || 0) + (total - seen);
+                        }
+                        f._netEdgeSeen[k] = Math.max(seen, total);
+                    } else {
+                        const explicit = Number(edges && edges[k]) || 0;
+                        if (explicit > 0) {
+                            f['_netRise_' + k] = (f['_netRise_' + k] || 0) + explicit;
+                        } else if (!f.input[k] && input[k]) {
+                            f['_netRise_' + k] = (f['_netRise_' + k] || 0) + 1;
+                        }
+                    }
                 }
                 f.setInput(input);
             };
@@ -2575,6 +2716,15 @@ class GameScene extends Phaser.Scene {
                 tk: +m.tick.toFixed(2),
                 ex: m.exploded ? 1 : 0,
             })),
+            saitamaCast: this._netSaitamaCast
+                ? {
+                    seq: this._netSaitamaCast.seq,
+                    owner: this._netSaitamaCast.owner,
+                    freezeDur: this._netSaitamaCast.freezeDur,
+                    startDelay: this._netSaitamaCast.startDelay,
+                    videoDuration: this._netSaitamaCast.videoDuration,
+                }
+                : null,
         };
     }
 
@@ -2685,6 +2835,24 @@ class GameScene extends Phaser.Scene {
             }));
         }
         if (Array.isArray(world.meteors)) this._syncRemoteMeteors(world.meteors);
+        this._syncRemoteSaitamaCast(world.saitamaCast || null);
+    }
+
+    _syncRemoteSaitamaCast(cast) {
+        if (!cast || !cast.seq) return;
+        if (cast.seq <= this._lastHandledSaitamaCastSeq) return;
+        this._lastHandledSaitamaCastSeq = cast.seq;
+
+        const def = (CONFIG.ULTIMATE_SKILLS && CONFIG.ULTIMATE_SKILLS.saitama) || {};
+        const freezeDur = Number.isFinite(cast.freezeDur) ? cast.freezeDur : (def.freezeScreenDuration || 500);
+        const owner = this.fighters.find(f => f._netPlayerId === cast.owner) || null;
+
+        this._saitamaOverlay = { timer: 0, maxTime: freezeDur + 350, fighter: owner, showText: true };
+        this._playSaitamaVideo(def, () => {
+            this._saitamaOverlay = null;
+            this._overlayGfx.clear();
+            if (this._saitamaText) this._saitamaText.setVisible(false);
+        });
     }
 
     _syncRemoteSkillBoxes(serialized) {
@@ -2802,10 +2970,20 @@ class GameScene extends Phaser.Scene {
         const changed = !this._lastSentInput || keys.some(k => !!nowInput[k] !== !!this._lastSentInput[k]);
 
         this._netInputAccum += delta;
+        const edges = this._pendingInputEdges || { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
+        const edgeTotals = this._inputEdgeTotals || { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
+        const hasPendingEdges = (edges.up + edges.light + edges.heavy + edges.dodge + edges.drop) > 0;
         const due = this._netInputAccum >= this._netInputInterval;
-        if (!due && !hasRisingEdge && !changed) return;
+        if (!due && !hasRisingEdge && !changed && !hasPendingEdges) return;
 
-        Net.sendInput(nowInput);
+        Net.sendInput(nowInput, {
+            _mode: 'total',
+            up: edgeTotals.up,
+            light: edgeTotals.light,
+            heavy: edgeTotals.heavy,
+            dodge: edgeTotals.dodge,
+            drop: edgeTotals.drop,
+        });
         this._lastSentInput = {
             left: !!nowInput.left,
             right: !!nowInput.right,
@@ -2816,6 +2994,7 @@ class GameScene extends Phaser.Scene {
             dodge: !!nowInput.dodge,
             drop: !!nowInput.drop,
         };
+        this._pendingInputEdges = { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
         this._netInputAccum = 0;
     }
 

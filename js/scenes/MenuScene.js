@@ -458,16 +458,7 @@ class MenuScene extends Phaser.Scene {
         Net.onLobbyUpdate = players => this._refreshLobby(players);
 
         Net.onGameStart = config => {
-            // Client-side: host started — launch game in online mode
-            UI.showScreen('game');
-            this.scene.start('GameScene', {
-                mode: config.mode,
-                mapKey: config.mapKey || CONFIG.DEFAULT_MAP,
-                online: true,
-                netConfig: config,
-                tournament: null,
-                tournamentMatch: null,
-            });
+            this._launchOnlineGameFromConfig(config);
         };
 
         Net.onHostDisconnect = () => {
@@ -515,20 +506,30 @@ class MenuScene extends Phaser.Scene {
 
         // Start button: enabled when 2+ players and enough are ready
         const startBtn = document.getElementById('btn-lobby-start');
+        const notHost = players.filter(p => p.id !== 1);
+        const allReady = notHost.length > 0 && notHost.every(p => p.ready);
+        const enoughPlayers = players.length >= 2;
         if (startBtn && isHost) {
-            const notHost = players.filter(p => p.id !== 1);
-            const allReady = notHost.length > 0 && notHost.every(p => p.ready);
-            const enoughPlayers = players.length >= 2;
             startBtn.disabled = !(enoughPlayers && allReady);
         }
 
         // Status
         const count = players.length;
         const ready = players.filter(p => p.ready).length;
+        const sameTeam = count >= 2 && (new Set(players.map(p => p.team)).size === 1);
         if (count < 2) {
             UI.setLobbyStatus('Waiting for players… (need at least 2)');
         } else {
-            UI.setLobbyStatus(`${count} player${count > 1 ? 's' : ''} — ${ready} ready`);
+            let status = `${count} player${count > 1 ? 's' : ''} — ${ready} ready`;
+            if (sameTeam) {
+                status += ' • All players are on one team - game will switch to FREE FOR ALL.';
+            }
+            if (!allReady) {
+                status += isHost
+                    ? ' • Need all guests READY before START GAME.'
+                    : ' • Waiting for all players to READY.';
+            }
+            UI.setLobbyStatus(status);
         }
     }
 
@@ -548,18 +549,43 @@ class MenuScene extends Phaser.Scene {
 
     _hostStartGame() {
         if (Net.role !== 'host') return;
-        Net.startGame();
-        // Host launches game directly (onGameStart also fires for host in network.js)
-        const config = { mode: Net.gameMode, mapKey: Net.selectedMap, players: Net.players };
-        UI.showScreen('game');
-        this.scene.start('GameScene', {
-            mode: config.mode,
-            mapKey: config.mapKey || CONFIG.DEFAULT_MAP,
-            online: true,
-            netConfig: config,
-            tournament: null,
-            tournamentMatch: null,
+        const players = Net.players || [];
+        const sameTeam = players.length >= 2 && (new Set(players.map(p => p.team)).size === 1);
+        const config = Net.startGame({
+            mode: sameTeam ? 'ffa' : Net.gameMode,
+            mapKey: Net.selectedMap,
+            forcedFFA: sameTeam,
+            notice: sameTeam ? 'All players chose one team - switching to FREE FOR ALL.' : '',
         });
+
+        // Fallback in case callbacks are not wired for host.
+        if (config && !Net.onGameStart) this._launchOnlineGameFromConfig(config);
+    }
+
+    _launchOnlineGameFromConfig(config) {
+        const finalMode = (config && config.mode) || Net.gameMode || '1v1';
+        Net.gameMode = finalMode;
+        document.querySelectorAll('.mode-pill').forEach(p =>
+            p.classList.toggle('active', p.dataset.mode === finalMode));
+
+        const start = () => {
+            UI.showScreen('game');
+            this.scene.start('GameScene', {
+                mode: finalMode,
+                mapKey: config.mapKey || CONFIG.DEFAULT_MAP,
+                online: true,
+                netConfig: config,
+                tournament: null,
+                tournamentMatch: null,
+            });
+        };
+
+        if (config && config.notice) {
+            UI.setLobbyStatus(config.notice);
+            this.time.delayedCall(900, start);
+        } else {
+            start();
+        }
     }
 
     _leaveLobby() {

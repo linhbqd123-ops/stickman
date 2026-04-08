@@ -38,7 +38,7 @@ class MultiplayerManager {
         // ── Callbacks set by consumer ──
         this.onLobbyUpdate = null;  // (players[]) => void
         this.onGameStart = null;  // (config)    => void
-        this.onInputReceived = null;  // (playerId, input) => void   — host only
+        this.onInputReceived = null;  // (playerId, input, edges) => void   — host only
         this.onStateReceived = null;  // (state)     => void         — clients only
         this.onPlayerLeft = null;  // (player)    => void
         this.onError = null;  // (err)       => void
@@ -196,15 +196,18 @@ class MultiplayerManager {
     }
 
     /** Start the game — host only. Fires onGameStart on all peers. */
-    startGame() {
+    startGame(options = {}) {
         if (this.role !== 'host') return;
         const config = {
-            mode: this.gameMode,
-            mapKey: this.selectedMap,
+            mode: options.mode || this.gameMode,
+            mapKey: options.mapKey || this.selectedMap,
             players: this._serialisePlayers(),
+            forcedFFA: !!options.forcedFFA,
+            notice: options.notice || '',
         };
         this._broadcast({ type: 'game-start', config });
         if (this.onGameStart) this.onGameStart(config);
+        return config;
     }
 
     /* ─────────────────────────────────────────────────────
@@ -231,9 +234,9 @@ class MultiplayerManager {
      * Called every frame (or on change).
      * @param {{ left,right,up,down,light,heavy,dodge: boolean }} input
      */
-    sendInput(input) {
+    sendInput(input, edges = null) {
         if (this.role !== 'client') return;
-        this._sendToHost({ type: 'input', pid: this.localPlayer?.id, input });
+        this._sendToHost({ type: 'input', pid: this.localPlayer?.id, input, edges });
     }
 
     /* ─────────────────────────────────────────────────────
@@ -321,7 +324,7 @@ class MultiplayerManager {
 
             case 'input': {
                 if (this.role !== 'host') break;
-                if (this.onInputReceived) this.onInputReceived(msg.pid, msg.input);
+                if (this.onInputReceived) this.onInputReceived(msg.pid, msg.input, msg.edges || null);
                 break;
             }
 

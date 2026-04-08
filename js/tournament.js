@@ -81,12 +81,10 @@ class Tournament {
 
     /**
      * Render the bracket as an HTML string (for injection into DOM).
-     * Tower floor cards (easy -> boss).
+     * Tower floor cards (easy -> boss) with grid layout.
      */
     renderHTML() {
         let html = '<div class="bracket-tree">';
-        html += '<div class="bracket-col">';
-        html += '<div class="bracket-round-label">TOWER</div>';
 
         for (let i = 0; i < this.floors.length; i++) {
             const floor = this.floors[i];
@@ -95,18 +93,20 @@ class Tournament {
             const tag = (i === this.floors.length - 1) ? 'BOSS FLOOR' : `FLOOR ${floor.round}`;
             const mark = floor.cleared ? '✔' : (floor.failed ? '✖' : '•');
 
-            html += `<div class="bracket-match${cls}">`;
-            html += `<div class="bracket-round-label" style="font-size:0.68rem;margin-bottom:8px;">${tag} ${mark}</div>`;
+            html += '<div class="bracket-col">';
+            html += `<div class="bracket-round-label">${tag} ${mark}</div>`;
             if (floor.mapKey) {
-                html += `<div class="bracket-round-label" style="font-size:0.62rem;margin-bottom:8px;opacity:0.8;">MAP: ${floor.mapKey.toUpperCase()}</div>`;
+                html += `<div class="bracket-round-label" style="font-size:0.60rem;opacity:0.75;">🗺 ${floor.mapKey.toUpperCase()}</div>`;
             }
+            html += `<div class="bracket-match${cls}">`;
             html += this._slotHTML(this.player, floor.cleared && !floor.failed, this.player && this.player.color);
             html += '<div class="bracket-vs">vs</div>';
             html += this._slotHTML(floor.opponent, floor.failed, floor.opponent && floor.opponent.color);
-            html += '</div>';
+            html += '</div>'; // bracket-match
+            html += '</div>'; // bracket-col
         }
 
-        html += '</div>'; // bracket-col
+        html += '</div>'; // bracket-tree
         return html;
     }
 
