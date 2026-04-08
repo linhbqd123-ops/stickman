@@ -12,17 +12,20 @@ class MenuScene extends Phaser.Scene {
     // data.tournament  — Tournament instance to resume (optional)
     // data.showBracket — show bracket immediately (optional)
     init(data) {
-        this._tournament   = (data && data.tournament) ? data.tournament : null;
-        this._showBracket  = !!(data && data.showBracket);
-        this._backToLobby  = !!(data && data.backToLobby);
-        this._selectedMap  = (data && data.mapKey) || CONFIG.DEFAULT_MAP;
-        this._pendingMode  = null;
+        this._tournament = (data && data.tournament) ? data.tournament : null;
+        this._showBracket = !!(data && data.showBracket);
+        this._backToLobby = !!(data && data.backToLobby);
+        this._selectedMap = (data && data.mapKey) || CONFIG.DEFAULT_MAP;
+        this._selectedAiDifficulty = (data && data.aiDifficulty) || 'medium';
+        this._pendingMode = null;
+        this._pendingAiDifficulty = this._selectedAiDifficulty;
     }
 
     create() {
         // Wire multi-use "data-action" buttons (re-wire to avoid duplicate listeners).
         // Clone trick: replace node with its clone to strip old listeners.
         this._rewireMenuButtons();
+        this._setAiDifficulty(this._selectedAiDifficulty);
 
         // Wire one-time bracket buttons
         this._rewireBtn('btn-bracket-start', () => this._beginCurrentTournamentMatch());
@@ -137,8 +140,11 @@ class MenuScene extends Phaser.Scene {
             case 'back-menu': UI.showScreen('menu'); break;
             case 'back-map-select': UI.showScreen('mode-select'); break;
             case '1v1-pvp': this._showMapSelect('1v1'); break;
-            case '1v1-ai':  this._showMapSelect('1vAI'); break;
-            case '2v2':     this._showMapSelect('2v2'); break;
+            case '1v1-ai': this._setAiDifficulty('medium'); this._showMapSelect('1vAI', 'medium'); break;
+            case '1v1-ai-easy': this._setAiDifficulty('easy'); this._showMapSelect('1vAI', 'easy'); break;
+            case '1v1-ai-medium': this._setAiDifficulty('medium'); this._showMapSelect('1vAI', 'medium'); break;
+            case '1v1-ai-hard': this._setAiDifficulty('hard'); this._showMapSelect('1vAI', 'hard'); break;
+            case '2v2': this._showMapSelect('2v2'); break;
             case 'tournament': UI.showScreen('tournament-setup'); break;
             case 'start-tournament': this._startTournament(); break;
             // ── Online ──
@@ -153,8 +159,13 @@ class MenuScene extends Phaser.Scene {
     // ─────────────────────────────────────────────────────────
     //  Map Selection
     // ────────────────────────────────────────────────────────────
-    _showMapSelect(mode) {
+    _showMapSelect(mode, aiDifficulty = null) {
         this._pendingMode = mode;
+        if (mode === '1vAI') {
+            this._pendingAiDifficulty = aiDifficulty || this._selectedAiDifficulty || 'medium';
+            this._selectedAiDifficulty = this._pendingAiDifficulty;
+            this._setAiDifficulty(this._selectedAiDifficulty);
+        }
         // Highlight previously selected map
         document.querySelectorAll('.map-card').forEach(card => {
             card.classList.toggle('selected', card.dataset.map === this._selectedMap);
@@ -170,8 +181,19 @@ class MenuScene extends Phaser.Scene {
         this.scene.start('GameScene', {
             mode,
             mapKey: mapKey || this._selectedMap,
+            aiDifficulty: mode === '1vAI' ? this._selectedAiDifficulty : null,
             tournament: this._tournament,
             tournamentMatch: null,
+        });
+    }
+
+    _setAiDifficulty(level) {
+        const valid = ['easy', 'medium', 'hard'];
+        const next = valid.includes(level) ? level : 'medium';
+        this._selectedAiDifficulty = next;
+
+        document.querySelectorAll('.ai-diff-btn').forEach(btn => {
+            btn.classList.toggle('selected', btn.dataset.diff === next);
         });
     }
 
@@ -179,22 +201,62 @@ class MenuScene extends Phaser.Scene {
     //  Tournament Setup
     // ─────────────────────────────────────────────────────────
     _startTournament() {
-        const opts = UI.getTournamentOptions();
         const C = CONFIG;
+        const towerCfg = C.TOURNAMENT_TOWER || {};
+        const opponentCount = Math.max(1, towerCfg.OPPONENT_COUNT || 4);
 
-        const entrants = [{
+        const player = {
             name: 'PLAYER 1', isPlayer: true,
             color: C.P1_COLOR, shadow: C.P1_SHADOW, difficulty: 0,
-        }];
-        const aiPool = C.TOURNAMENT_AI.slice();
-        for (let i = aiPool.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [aiPool[i], aiPool[j]] = [aiPool[j], aiPool[i]];
+        };
+
+        const sortedAi = C.TOURNAMENT_AI
+            .slice()
+            .sort((a, b) => (a.difficulty || 0) - (b.difficulty || 0));
+
+        const normalCount = Math.max(0, opponentCount - 1);
+        const opponents = [];
+
+        for (let i = 0; i < normalCount; i++) {
+            const src = sortedAi[Math.min(i, Math.max(0, sortedAi.length - 1))] || {
+                name: `CPU ${i + 1}`,
+                color: '#ffaa00',
+                shadow: 'rgba(255,170,0,0.5)',
+                difficulty: 0.5,
+            };
+            opponents.push({
+                ...src,
+                isPlayer: false,
+                stocks: C.DEFAULT_STOCKS,
+                maxAirJumps: 1,
+                aiLevel: (src.difficulty || 0) >= 0.82 ? 'hard' : 'medium',
+            });
         }
-        for (let i = 1; i < opts.size; i++) {
-            entrants.push({ ...aiPool[i - 1], isPlayer: false });
-        }
-        this._tournament = new Tournament(entrants);
+
+        const strongest = sortedAi.length ? sortedAi[sortedAi.length - 1] : {
+            name: 'BOSS',
+            color: '#ff3d3d',
+            shadow: 'rgba(255,61,61,0.5)',
+            difficulty: 0.95,
+        };
+        const bossCfg = towerCfg.BOSS || {};
+        const boss = {
+            ...strongest,
+            ...bossCfg,
+            name: bossCfg.name || `${strongest.name} Ω`,
+            isPlayer: false,
+            difficulty: Number.isFinite(bossCfg.difficulty) ? bossCfg.difficulty : 1,
+            aiLevel: bossCfg.aiLevel || 'hard',
+            stocks: Number.isFinite(bossCfg.stocks) ? bossCfg.stocks : (C.DEFAULT_STOCKS + 3),
+            maxAirJumps: Number.isFinite(bossCfg.maxAirJumps) ? bossCfg.maxAirJumps : 3,
+        };
+
+        opponents.push(boss);
+
+        this._tournament = new Tournament([player, ...opponents], {
+            randomMapPool: towerCfg.RANDOM_MAP_POOL,
+            finalMapKey: towerCfg.FINAL_MAP_KEY,
+        });
 
         UI.showBracketScreen(
             this._tournament,
@@ -211,7 +273,7 @@ class MenuScene extends Phaser.Scene {
         UI.showScreen('game');
         this.scene.start('GameScene', {
             mode: 'tournament',
-            mapKey: this._selectedMap,
+            mapKey: match.mapKey || this._selectedMap,
             tournament: this._tournament,
             tournamentMatch: match,
         });

@@ -22,6 +22,7 @@ class GameScene extends Phaser.Scene {
     init(data) {
         this.mode = data.mode || '1vAI';
         this.mapKey = data.mapKey || CONFIG.DEFAULT_MAP;
+        this.aiDifficulty = (data.aiDifficulty || 'medium').toLowerCase();
         this.tournament = data.tournament || null;
         this.tournamentMatch = data.tournamentMatch || null;
         this.online = !!(data.online);
@@ -255,24 +256,17 @@ class GameScene extends Phaser.Scene {
         // ---- Online networking ----
         if (this.online) {
             if (Net.role === 'host') {
-                // Broadcast authoritative state to all clients at ~20 Hz (every 3 frames @ 60 FPS).
-                // 20 Hz is the sweet spot for a fighting game over WebRTC:
-                //  • Enough update density for smooth interpolation (~50 ms max stale age)
-                //  • Not so frequent that it creates token-ring-style queue buildup on
-                //    a reliable ordered SCTP connection under a weak network link.
-                //  • Delta compression already means idle-fighter frames send 0 bytes.
-                this._netFrameTick++;
-                if (this._netFrameTick % 3 === 0) {
-                    const snap = this._makeSnapshot();
-                    if (snap) Net.broadcastState(snap); // null = nothing changed, skip send
-                }
+                // Broadcast authoritative state every frame so guest always has
+                // the latest physics result. Delta compression keeps bandwidth low:
+                // idle fighters produce no changed fields → packet skipped entirely.
+                const snap = this._makeSnapshot();
+                if (snap) Net.broadcastState(snap);
             } else if (Net.role === 'client') {
-                // Send local input to host (change-only throttle)
+                // Send input every frame so host never misses a transient press.
                 this._sendLocalInput();
-                // Apply newly arrived server snapshot exactly once per reception.
-                // Applying the same snapshot every frame (which happened previously)
-                // caused repeated drift-checks that rubber-banded the fighter back
-                // to a stale server position mid-jump.
+                // Apply the latest server snapshot once per reception.
+                // Host broadcasts every frame; guest applies each packet once so
+                // the same snapshot is never re-applied on subsequent frames.
                 if (this._newSnapshot) {
                     this._applySnapshot(this._newSnapshot);
                     this._newSnapshot = null;
@@ -345,6 +339,17 @@ class GameScene extends Phaser.Scene {
             { color: C.P4_COLOR, shadow: C.P4_SHADOW },
         ];
 
+        // Compute spawn X positions relative to the ground platform center
+        const _ground = this._mapDef.platforms[0];
+        const _cx = _ground.x + _ground.w / 2;   // center of ground
+        const _qw = Math.min(_ground.w * 0.22, 200); // quarter-width offset (capped)
+        const _sp = {
+            left2: _cx - _qw * 1.6,   // far left  (2v2)
+            left1: _cx - _qw,          // near left
+            right1: _cx + _qw,          // near right
+            right2: _cx + _qw * 1.6,   // far right (2v2)
+        };
+
         const make = (idx, x, facingRight, isPlayer, keyMap, preset, team, diff) => {
             const resolvedKeyMap = keyMap || C.KEYS_P1;
             const f = new Fighter({
@@ -357,11 +362,27 @@ class GameScene extends Phaser.Scene {
             });
             f._name = '';
             f._difficulty = diff || 0;
+            if (!isPlayer && Number.isFinite(diff) && diff >= 0.9) {
+                f.maxAirJumps = 2;
+            }
             f._keyMap = resolvedKeyMap;  // explicit reference for input routing
             // Create per-fighter Graphics object
             const gfx = this.add.graphics().setDepth(3);
             this._fighterGfxArr.push(gfx);
             return f;
+        };
+
+        const applyTournamentMeta = (fighter, meta) => {
+            if (!fighter || !meta) return;
+            if (Number.isFinite(meta.stocks)) {
+                fighter.stocks = Math.max(1, Math.round(meta.stocks));
+            }
+            if (Number.isFinite(meta.maxAirJumps)) {
+                fighter.maxAirJumps = Math.max(0, Math.floor(meta.maxAirJumps));
+            }
+            if (meta.aiLevel) {
+                fighter._aiLevel = meta.aiLevel;
+            }
         };
 
         const { mode } = this;
@@ -371,10 +392,10 @@ class GameScene extends Phaser.Scene {
             //  ONLINE MODE — build fighters from lobby player list
             // ============================================================
             const SPAWN_POS = [
-                { x: 300, fr: true },   // slot 0
-                { x: 980, fr: false },   // slot 1
-                { x: 520, fr: false },   // slot 2 (2v2)
-                { x: 760, fr: true },   // slot 3 (2v2)
+                { x: _sp.left1, fr: true },    // slot 0
+                { x: _sp.right1, fr: false },   // slot 1
+                { x: _sp.left2, fr: true },    // slot 2 (2v2)
+                { x: _sp.right2, fr: false },   // slot 3 (2v2)
             ];
             const players = this.netConfig.players || [];
             players.forEach((p, i) => {
@@ -395,39 +416,46 @@ class GameScene extends Phaser.Scene {
             });
 
         } else if (mode === '1v1') {
-            const f0 = make(0, 300, true, true, C.KEYS_P1, PRESETS[0], 0);
-            const f1 = make(1, 980, false, true, C.KEYS_P2, PRESETS[1], 1);
+            const f0 = make(0, _sp.left1, true, true, C.KEYS_P1, PRESETS[0], 0);
+            const f1 = make(1, _sp.right1, false, true, C.KEYS_P2, PRESETS[1], 1);
             f0._name = 'PLAYER 1'; f1._name = 'PLAYER 2';
             this.fighters.push(f0, f1);
 
         } else if (mode === '1vAI') {
-            const f0 = make(0, 300, true, true, C.KEYS_P1, PRESETS[0], 0);
-            const f1 = make(1, 980, false, false, C.KEYS_P2, PRESETS[1], 1, 0.5);
+            const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
+            const preset = presets[this.aiDifficulty] || presets.medium || { label: 'MEDIUM', scalar: 0.58, airJumps: 1 };
+            const aiDiff = Number.isFinite(preset.scalar) ? preset.scalar : 0.58;
+            const f0 = make(0, _sp.left1, true, true, C.KEYS_P1, PRESETS[0], 0);
+            const f1 = make(1, _sp.right1, false, false, C.KEYS_P2, PRESETS[1], 1, aiDiff);
+            f1.maxAirJumps = Number.isFinite(preset.airJumps) ? Math.max(0, preset.airJumps) : 1;
+            f1._difficultyName = preset.label || this.aiDifficulty.toUpperCase();
             f0._name = 'PLAYER 1'; f1._name = 'CPU';
             this.fighters.push(f0, f1);
-            this.bots.push({ fighter: f1, bot: new Bot(f1, 0.5) });
+            this.bots.push({ fighter: f1, bot: new Bot(f1, aiDiff, { scene: this, level: this.aiDifficulty }) });
 
         } else if (mode === '2v2') {
-            const f0 = make(0, 260, true, true, C.KEYS_P1, PRESETS[0], 0);
-            const f1 = make(1, 400, true, false, null, PRESETS[2], 0, 0.45);
-            const f2 = make(2, 880, false, true, C.KEYS_P2, PRESETS[1], 1);
-            const f3 = make(3, 1020, false, false, null, PRESETS[3], 1, 0.45);
+            const f0 = make(0, _sp.left2, true, true, C.KEYS_P1, PRESETS[0], 0);
+            const f1 = make(1, _sp.left1, true, false, null, PRESETS[2], 0, 0.45);
+            const f2 = make(2, _sp.right1, false, true, C.KEYS_P2, PRESETS[1], 1);
+            const f3 = make(3, _sp.right2, false, false, null, PRESETS[3], 1, 0.45);
             f0._name = 'PLAYER 1'; f1._name = 'ALLY';
             f2._name = 'PLAYER 2'; f3._name = 'FOE';
             this.fighters.push(f0, f1, f2, f3);
-            this.bots.push({ fighter: f1, bot: new Bot(f1, 0.45) });
-            this.bots.push({ fighter: f3, bot: new Bot(f3, 0.45) });
+            this.bots.push({ fighter: f1, bot: new Bot(f1, 0.45, { scene: this }) });
+            this.bots.push({ fighter: f3, bot: new Bot(f3, 0.45, { scene: this }) });
 
         } else if (mode === 'tournament' && this.tournamentMatch) {
             const { p1, p2 } = this.tournamentMatch;
-            const f0 = make(0, 360, true, p1.isPlayer, C.KEYS_P1,
+            const f0 = make(0, _sp.left1, true, p1.isPlayer, C.KEYS_P1,
                 { color: p1.color, shadow: p1.shadow }, 0, p1.difficulty);
-            const f1 = make(1, 920, false, p2.isPlayer, C.KEYS_P2,
+            const f1 = make(1, _sp.right1, false, p2.isPlayer, C.KEYS_P2,
                 { color: p2.color, shadow: p2.shadow }, 1, p2.difficulty);
+            applyTournamentMeta(f0, p1);
+            applyTournamentMeta(f1, p2);
             f0._name = p1.name; f1._name = p2.name;
             this.fighters.push(f0, f1);
-            if (!p1.isPlayer) this.bots.push({ fighter: f0, bot: new Bot(f0, p1.difficulty || 0.5) });
-            if (!p2.isPlayer) this.bots.push({ fighter: f1, bot: new Bot(f1, p2.difficulty || 0.5) });
+            if (!p1.isPlayer) this.bots.push({ fighter: f0, bot: new Bot(f0, p1.difficulty || 0.5, { scene: this, level: p1.aiLevel }) });
+            if (!p2.isPlayer) this.bots.push({ fighter: f1, bot: new Bot(f1, p2.difficulty || 0.5, { scene: this, level: p2.aiLevel }) });
         }
 
         if (this.fighters.length >= 2) {
@@ -436,8 +464,20 @@ class GameScene extends Phaser.Scene {
                 this.fighters[2]?._name, this.fighters[3]?._name
             );
         }
-        const modeLabels = { '1v1': '2P VS', '1vAI': 'VS AI', '2v2': '2v2 TEAM', 'tournament': 'TOURNAMENT' };
-        UI.setModeTag(this.online ? 'ONLINE' : (modeLabels[mode] || mode));
+        const modeLabels = { '1v1': '2P VS', '1vAI': 'VS AI', '2v2': '2v2 TEAM', 'tournament': 'TOWER' };
+        let modeLabel = modeLabels[mode] || mode;
+        if (mode === '1vAI') {
+            const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
+            const preset = presets[this.aiDifficulty] || presets.medium;
+            const diffLabel = (preset && preset.label) ? preset.label : this.aiDifficulty.toUpperCase();
+            modeLabel = `${modeLabel} • ${diffLabel}`;
+        }
+        UI.setModeTag(this.online ? 'ONLINE' : modeLabel);
+        if (mode === 'tournament' && this.tournament && this.tournament.roundLabel) {
+            UI.setRoundLabel(this.tournament.roundLabel);
+        } else {
+            UI.setRoundLabel('MATCH');
+        }
         UI.setHudPlayers(this.fighters.length);
         UI.updateStocks(this.fighters);
         UI.updateDamage(this.fighters);
@@ -1238,7 +1278,11 @@ class GameScene extends Phaser.Scene {
             for (let i = 0; i < count; i++) {
                 this.time.delayedCall(i * interval, () => {
                     if (this.matchOver) return;
-                    const spawnX = 80 + Math.random() * (mapW - 160);
+                    // Apply configurable randomness to meteor X position
+                    const randomness = def.meteorRandomness !== undefined ? def.meteorRandomness : 0;
+                    const baseX = 80 + Math.random() * (mapW - 160);
+                    const offset = (Math.random() - 0.5) * randomness * mapW; // +/- half of randomness fraction
+                    const spawnX = Phaser.Math.Clamp(baseX + offset, 0, mapW);
                     let sprite = null;
                     if (this.textures.exists(meteorTex)) {
                         const size = (def.meteorHitboxRadius || 55) * 1.8;
@@ -1960,8 +2004,13 @@ class GameScene extends Phaser.Scene {
 
     _onTournamentEnd() {
         const champ = this.tournament.champion();
+        const playerWon = !!(champ && champ.isPlayer);
+        const failRound = this.tournament && this.tournament.failedAt ? this.tournament.failedAt : 0;
+        const msg = playerWon
+            ? 'You conquered the tower!'
+            : `Tower failed at floor ${failRound || '?'} - ${champ ? champ.name : 'Rival'} wins.`;
         UI.showTournamentWin(
-            (champ ? champ.name : 'Someone') + ' is the CHAMPION!',
+            msg,
             () => {
                 this.tournament = null;
                 this._exitToMenu();
@@ -1983,6 +2032,7 @@ class GameScene extends Phaser.Scene {
         this.scene.start('GameScene', {
             mode: this.mode === 'tournament' ? '1vAI' : this.mode,
             mapKey: this.mapKey,
+            aiDifficulty: this.aiDifficulty,
             tournament: null,
         });
     }
@@ -2046,6 +2096,7 @@ class GameScene extends Phaser.Scene {
                 naruto: ['#1a0800', '#2a1000', '#1a0500'],
                 dragonball: ['#080018', '#10002a', '#0d001e'],
                 fptsoftware: ['#000a14', '#001428', '#000814'],
+                voidrift: ['#06010e', '#130426', '#04000a'],
             };
             const [c0, c1, c2] = skyColors[this.mapKey] || ['#080818', '#0d0d28', '#120820'];
             const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -2073,6 +2124,7 @@ class GameScene extends Phaser.Scene {
                 naruto: 'rgba(30,12,0,0.8)',
                 dragonball: 'rgba(12,0,28,0.8)',
                 fptsoftware: 'rgba(0,10,20,0.8)',
+                voidrift: 'rgba(24,0,32,0.78)',
             };
             const buildings = [
                 { x: 0, w: 70, h: 220 }, { x: 80, w: 45, h: 170 }, { x: 135, w: 90, h: 270 },
@@ -2085,6 +2137,35 @@ class GameScene extends Phaser.Scene {
             const gy = this._mapDef.platforms[0].y;
             ctx.fillStyle = silColors[this.mapKey] || 'rgba(18,18,45,0.8)';
             buildings.forEach(b => ctx.fillRect(b.x, gy - b.h, b.w, b.h));
+
+            if (this.mapKey === 'voidrift') {
+                // Rift core + cracks for a more iconic nightmare stage look.
+                const cx = W * 0.5;
+                const cy = H * 0.38;
+                const rg = ctx.createRadialGradient(cx, cy, 20, cx, cy, 260);
+                rg.addColorStop(0, 'rgba(244,180,255,0.95)');
+                rg.addColorStop(0.18, 'rgba(201,82,255,0.65)');
+                rg.addColorStop(0.42, 'rgba(84,20,130,0.35)');
+                rg.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = rg;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 260, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(214,118,255,0.38)';
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 9; i++) {
+                    const sx = 120 + i * 165;
+                    const ex = sx + (i % 2 === 0 ? 60 : -70);
+                    const sy = gy - 130 - (i % 3) * 45;
+                    const ey = sy - 110 - (i % 2) * 35;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo((sx + ex) * 0.5, (sy + ey) * 0.5 - 22);
+                    ctx.lineTo(ex, ey);
+                    ctx.stroke();
+                }
+            }
 
             ct.refresh();
         }
@@ -2242,13 +2323,12 @@ class GameScene extends Phaser.Scene {
             Net.onInputReceived = (pid, input) => {
                 const f = this.fighters.find(f => f._netPlayerId === pid);
                 if (!f || f._isLocalNet) return;
-                // Detect rising edges at receipt time and store them on the fighter.
-                // This prevents jump/attack inputs from being silently dropped when
-                // a key-down + key-up both arrive between the same two host frames
-                // (setInput would overwrite _prevInput and erase the rising edge).
-                // Counter (not boolean): two rapid double-taps arriving in the same
-                // host frame each increment the counter so both are processed
-                // separately in successive update ticks.
+                // Detect rising edges at receipt time and store them on the fighter
+                // BEFORE calling setInput (which overwrites _prevInput).
+                // Because guest now sends every frame, we compare against the current
+                // live input state — if the key is newly pressed this packet, it's a
+                // rising edge. The counter lets two rapid presses (double-jump) both
+                // be processed on successive host update ticks.
                 for (const k of ['up', 'light', 'heavy', 'dodge', 'drop']) {
                     if (!f.input[k] && input[k]) f['_netRise_' + k] = (f['_netRise_' + k] || 0) + 1;
                 }
@@ -2339,49 +2419,30 @@ class GameScene extends Phaser.Scene {
             if (!f) continue;
 
             if (f._isLocalNet) {
-                // Sync authoritative combat values every snapshot.
+                // Host is the authoritative source. Hard-sync ALL state from every
+                // snapshot. Because host now broadcasts every frame and guest sends
+                // input every frame, the positions are tightly coupled — there is no
+                // "client prediction divergence" to work around, so soft-lerp
+                // reconciliation is both unnecessary and harmful (it was the cause of
+                // the perceived lag and sync drift under the old change-only scheme).
+                if (snap.x !== undefined) f.x = snap.x;
+                if (snap.y !== undefined) f.y = snap.y;
+                if (snap.vx !== undefined) f.vx = snap.vx;
+                if (snap.vy !== undefined) f.vy = snap.vy;
+                if (snap.fa !== undefined) f.facing = snap.fa;
+                if (snap.st !== undefined) f.state = snap.st;
+                if (snap.atk !== undefined) f.attackType = snap.atk;
                 if (snap.dmg !== undefined) f.damage = snap.dmg;
                 if (snap.stk !== undefined) f.stocks = snap.stk;
                 if (snap.eng !== undefined) f.energy = snap.eng;
+                if (snap.inv !== undefined) f.invTimer = snap.inv;
+                if (snap.hrt !== undefined) f.hurtTimer = snap.hrt;
+                if (snap.re !== undefined) f._respawning = !!snap.re;
+                if (snap.sk !== undefined) f.collectedSkill = snap.sk;
                 if (snap.uk !== undefined) f.collectedUltimate = snap.uk;
-                // Extend (never shorten) local invincibility from server so dodge /
-                // combo invincibility windows are consistent on both sides.
-                if (snap.inv !== undefined && snap.inv > f.invTimer) f.invTimer = snap.inv;
-
-                // Hard-sync position + velocity ONLY when the server forcibly moved
-                // the fighter:
-                //  • being hit   (state = 'hurt' / hurtTimer > 0)
-                //  • respawning  (re flag set)
-                //
-                // Horizontal safety-net: correct catastrophic X divergence > 400 px
-                // (e.g. blast-zone position errors) but NOT on Y alone.
-                //
-                // WHY skip Y-axis drift correction:
-                //   A double-jump raises the fighter ~300 px above the server's last
-                //   known ground position (server hasn't received the jump input yet
-                //   due to network RTT).  The old "drift > 250" threshold snapped the
-                //   fighter back to ground MID-JUMP → visible jitter + 1-frame ground
-                //   clip.  Trusting client-side prediction for voluntary Y movement
-                //   eliminates both artefacts; the server converges once input arrives.
-                const isHurt = (snap.st === 'hurt') ||
-                    (snap.hrt !== undefined && snap.hrt > 0);
-                const isDead = !!(snap.re);
-                const snapX = snap.x !== undefined ? snap.x : f.x;
-                const snapY = snap.y !== undefined ? snap.y : f.y;
-                const extremeXDrift = Math.abs(f.x - snapX) > 400;
-
-                if (isHurt || isDead || extremeXDrift) {
-                    f.x = snapX; f.y = snapY;
-                    if (snap.vx !== undefined) f.vx = snap.vx;
-                    if (snap.vy !== undefined) f.vy = snap.vy;
-                    if (snap.st !== undefined) f.state = snap.st;
-                    if (snap.hrt !== undefined) f.hurtTimer = snap.hrt;
-                    if (snap.inv !== undefined) f.invTimer = snap.inv;
-                    // Re-run platform collision immediately after a position teleport
-                    // so onGround is correct and the fighter doesn't visually clip
-                    // through the floor surface for one frame.
-                    if (this._platforms) this._platforms.resolve(f);
-                }
+                // Re-run platform collision after every position sync so onGround
+                // is immediately correct and the fighter never clips through the floor.
+                if (this._platforms) this._platforms.resolve(f);
             } else {
                 // Set interpolation target for position (smooth between 15Hz snapshots)
                 if (snap.x !== undefined || snap.y !== undefined) {
@@ -2408,24 +2469,17 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    /** Client: send local fighter's current input to host, throttled to changes only. */
+    /** Client: send local fighter's current input to host every frame.
+     *  Sending every frame (not just on change) ensures the host never misses
+     *  a transient button press that was held for less than one RTT, which is
+     *  the root cause of lost jumps and missing double-jumps on the host side.
+     */
     _sendLocalInput() {
         const localF = this.fighters.find(f => f._isLocalNet);
         if (!localF) return;
         // Reuse the input object already populated by _updateInput() this frame
-        // instead of re-reading the keyboard — guarantees host sees exactly
-        // the same state that was used for local-prediction physics.
-        const input = localF.input;
-        const last = this._lastSentInput;
-        if (last &&
-            last.left === input.left && last.right === input.right &&
-            last.up === input.up && last.down === input.down &&
-            last.light === input.light && last.heavy === input.heavy &&
-            last.dodge === input.dodge && last.drop === input.drop) return;
-        Net.sendInput(input);
-        // Store a shallow copy so the comparison next frame is against the values
-        // at send-time, not a live reference that may mutate.
-        this._lastSentInput = { ...input };
+        // so the host sees exactly the state used for local-prediction physics.
+        Net.sendInput(localF.input);
     }
 
     /** Called when host disconnects mid-game (client only). */

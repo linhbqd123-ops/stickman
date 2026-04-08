@@ -82,7 +82,8 @@ class Fighter {
         this._comboCount = 0;
 
         // ---- Air state tracking ----
-        this._airJumpUsed = false;   // double-jump token (reset on land)
+        this.maxAirJumps = Number.isFinite(opts.maxAirJumps) ? Math.max(0, Math.floor(opts.maxAirJumps)) : 1;
+        this._airJumpsUsed = 0;   // consumed in-air jumps (reset on land)
         this._usedHeavyAir = false;   // heavy_air token (reset on land)
         this._wasOnGround = true;
 
@@ -182,7 +183,7 @@ class Fighter {
         if (platforms) platforms.resolve(this);
         // Reset air-use tokens on landing
         if (this.onGround && !this._wasOnGround) {
-            this._airJumpUsed = false;
+            this._airJumpsUsed = 0;
             this._usedHeavyAir = false;
         }
         this._wasOnGround = this.onGround;
@@ -195,6 +196,9 @@ class Fighter {
     _handleMovement(dt, C, particles) {
         const inp = this.input;
         const prev = this._prevInput;
+        // Evaluate jump rising-edge once per frame. This is critical for
+        // networked inputs where _netRise_up is a consumable counter.
+        const upTrig = this._risingEdge('up');
         let moving = false;
 
         if (this.onGround) {
@@ -231,21 +235,59 @@ class Fighter {
             this._wallJumpCooldown <= 0 &&
             this.vy >= -C.WALL_GRAB_ENTER_VY;  // allow grab even slightly upward
 
-        if (canWallGrab) {
-            this.facing = this.wallDir;   // always face toward the wall
+        const wallJumpTrig = (this.state === 'wallgrab') && upTrig;
+        if (canWallGrab || wallJumpTrig) {
+            if (wallJumpTrig) {
+                const movingLeft = inp.left;
+                const movingRight = inp.right;
+                let kickDir = 0;
+
+                if (this.wallDir === -1 && movingRight) kickDir = 1;
+                else if (this.wallDir === 1 && movingLeft) kickDir = -1;
+
+                if (kickDir !== 0) {
+                    console.log('Wall jump!');
+                    // Wall jump ra ngoài
+                    this.vy = C.JUMP_FORCE * 0.92;
+                    this.vx = kickDir * C.WALL_JUMP_VX;
+                    this.facing = kickDir;
+                    this.state = 'airborne';
+                    this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN;
+                    this._airJumpsUsed = 0;
+                    this._wallGrabTick = 0;
+                    Audio.playJump && Audio.playJump();
+                    const prevWallDir = this.wallDir;
+                    this.onWall = false;
+                    this.wallDir = 0;
+                    if (particles) particles.spawnWallDust(this.x, this.y, prevWallDir);
+                    return; // QUAN TRỌNG: thoát ngay, không cho code bám tường chạy
+                } else {
+                    // Nhảy thẳng lên nếu không giữ hướng ra ngoài
+                    this.vy = C.JUMP_FORCE;
+                    this.vx = 0;
+                    this.state = 'airborne';
+                    this._airJumpsUsed = 0;
+                    this._wallGrabTick = 0;
+                    Audio.playJump && Audio.playJump();
+                    this.onWall = false;
+                    this.wallDir = 0;
+                    return; // cũng return ngay
+                }
+            }
+
+            if (!canWallGrab) return;
+
+            this.facing = this.wallDir;
 
             if (this.state !== 'wallgrab') {
-                // First frame of grab
                 this.state = 'wallgrab';
-                this._airJumpUsed = false;    // gift a double-jump for climbing off
+                this._airJumpsUsed = 0;
                 this._wallGrabTick = 0;
                 Audio.playDodge && Audio.playDodge();
             }
 
             this._wallGrabTick += dt;
-            this.vx = 0;   // no horizontal drift while clinging
 
-            // ── Auto-release after WALL_GRAB_MAX_MS (prevents bot getting stuck) ──
             if (this._wallGrabTick >= C.WALL_GRAB_MAX_MS) {
                 this.state = 'airborne';
                 this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN;
@@ -253,38 +295,31 @@ class Fighter {
                 return;
             }
 
-            // ── Wall jump: press UP ──
-            if (this._risingEdge('up')) {
-                const kickDir = -this.wallDir;   // jump AWAY from wall
-                this.vy = C.JUMP_FORCE * 0.92;
-                this.vx = kickDir * C.WALL_JUMP_VX;
-                this.facing = kickDir;
-                this.state = 'airborne';
-                this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN;
-                this._airJumpUsed = false;    // fresh double-jump after wall jump
-                this._wallGrabTick = 0;
-                Audio.playJump && Audio.playJump();
-                if (particles) particles.spawnWallDust(this.x, this.y, this.wallDir);
-                return;
-            }
-
-            // ── Release: press AWAY from wall ──
             const awayFromWall = (this.wallDir > 0 && inp.left) ||
                 (this.wallDir < 0 && inp.right);
             if (awayFromWall) {
+                const releaseDir = this.wallDir > 0 ? -1 : 1;
+                this.vx = releaseDir * Math.max(2.5, C.AIR_MOVE * 0.9);
                 this.state = 'airborne';
                 this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN * 0.4;
                 this._wallGrabTick = 0;
+                this.onWall = false;
+                this.wallDir = 0;
+                this.wallPlatform = null;
                 return;
             }
 
-            // ── Scrape dust while sliding down ──
+            // Chỉ set vx = 0 khi vẫn đang bám tường
+            if (this.state === 'wallgrab') {
+                this.vx = 0;
+            }
+
             if (this.vy > 0.4 && particles && Math.random() < 0.22) {
                 particles.spawnWallDust(this.x, this.y, this.wallDir);
             }
 
             this.state = 'wallgrab';
-            return;   // skip normal movement
+            return;
         }
 
         // Not on wall — exit wallgrab if we were in it
@@ -319,14 +354,15 @@ class Fighter {
             }
         }
 
-        if (this._risingEdge('up') && this.onGround) {
+        if (upTrig && this.onGround) {
             this.vy = C.JUMP_FORCE;
             this.onGround = false;
             Audio.playJump();
-        } else if (this._risingEdge('up') && !this.onGround && !this._airJumpUsed) {
-            // Double jump — slightly weaker
-            this.vy = Math.round(C.JUMP_FORCE * 0.85);
-            this._airJumpUsed = true;
+        } else if (upTrig && !this.onGround && this._airJumpsUsed < this.maxAirJumps) {
+            // Additional in-air jumps become slightly weaker each time.
+            const weakenStep = Math.min(0.18, this._airJumpsUsed * 0.06);
+            this.vy = Math.round(C.JUMP_FORCE * (0.85 - weakenStep));
+            this._airJumpsUsed++;
             Audio.playJump && Audio.playJump();
         }
 
@@ -669,7 +705,7 @@ class Fighter {
         } else if (atkKey === 'light_air_down') {
             kbx = this.facing * F * 0.65; kby = F * 0.65;
         } else if (atkKey === 'heavy_air_down') {
-            kbx = this.facing * F * 0.15; kby = F * 1.0;
+            kbx = 0; kby = F * 1.5;  // Pure downward knockback (Brawlhalla style)
         } else if (atkKey === 'heavy_air') {
             kbx = this.facing * F * 0.5; kby = -F * 0.85;
         } else if (atkKey.startsWith('ultimate') || atkKey === 'ultimate') {
@@ -843,7 +879,13 @@ class Fighter {
     _doRespawn() {
         const C = CONFIG;
         this._respawning = false;
-        const ground = C.PLATFORMS[0];
+
+        // Use map-specific ground platform if available, else fall back to global
+        let ground = C.PLATFORMS[0];
+        if (this._scene && this._scene._mapDef && this._scene._mapDef.platforms && this._scene._mapDef.platforms.length > 0) {
+            ground = this._scene._mapDef.platforms[0];
+        }
+
         this.x = ground.x + ground.w / 2 + (this.id % 2 === 0 ? 120 : -120);
         this.y = ground.y - 200;
         this.vx = 0; this.vy = 0;
@@ -903,7 +945,7 @@ class Fighter {
         this._prevInput = this._emptyInput();
         this.tick = 0;
         this.dashCooldown = 0;
-        this._airJumpUsed = false;
+        this._airJumpsUsed = 0;
         this._usedHeavyAir = false;
         this._wasOnGround = true;
         this.collectedSkill = null;

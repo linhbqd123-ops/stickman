@@ -51,12 +51,12 @@ class PlatformSystem {
         const srcPlats = (mapDef && mapDef.platforms) ? mapDef.platforms : CONFIG.PLATFORMS;
         this.platforms = srcPlats.map(p => Object.assign({}, p));
 
-        this._scene     = scene;
-        this._mapKey    = mapKey || 'default';
-        this._moveCfg   = (mapDef && mapDef.randomPlatformMovement) || { enabled: false };
-        this._platImages  = {};   // id → Phaser.GameObjects.Image
-        this._platVels    = {};   // id → current velocity (px per 60-fps frame)
-        this._platTimers  = {};   // id → ms until next velocity change
+        this._scene = scene;
+        this._mapKey = mapKey || 'default';
+        this._moveCfg = (mapDef && mapDef.randomPlatformMovement) || { enabled: false };
+        this._platImages = {};   // id → Phaser.GameObjects.Image
+        this._platVels = {};   // id → current velocity (px per 60-fps frame)
+        this._platTimers = {};   // id → ms until next velocity change
 
         // ---- Create Phaser Image objects for platforms with loaded textures ----
         for (const plat of this.platforms) {
@@ -93,12 +93,28 @@ class PlatformSystem {
                 };
             }
 
+            // ---- Optional phase-shift (platform disappears/reappears by cycle) ----
+            if (Number.isFinite(plat.phaseOnMs) && Number.isFinite(plat.phaseOffMs)
+                && plat.phaseOnMs > 0 && plat.phaseOffMs > 0) {
+                plat._phaseOnMs = Math.max(80, plat.phaseOnMs);
+                plat._phaseOffMs = Math.max(80, plat.phaseOffMs);
+                plat._phaseCycleMs = plat._phaseOnMs + plat._phaseOffMs;
+                const seed = Number.isFinite(plat.phaseOffsetMs)
+                    ? plat.phaseOffsetMs
+                    : Math.random() * plat._phaseCycleMs;
+                plat._phaseTick = ((seed % plat._phaseCycleMs) + plat._phaseCycleMs) % plat._phaseCycleMs;
+                plat._phaseWarnMs = Number.isFinite(plat.phaseWarnMs) ? Math.max(60, plat.phaseWarnMs) : 220;
+                plat._phaseActive = plat._phaseTick < plat._phaseOnMs;
+                plat._phaseWarn = false;
+                plat._phaseAlpha = plat._phaseActive ? 1 : 0.14;
+            }
+
             // ---- Init movement state for floating (passThrough) platforms ----
             if (plat.passThrough && this._moveCfg.enabled && plat.id) {
-                plat._originX               = plat.x;
-                this._platVels[plat.id]     = 0;
+                plat._originX = plat.x;
+                this._platVels[plat.id] = 0;
                 // Stagger starting timers so not all platforms move at once
-                this._platTimers[plat.id]   = 400 + Math.random() * 2200;
+                this._platTimers[plat.id] = 400 + Math.random() * 2200;
             }
         }
     }
@@ -113,11 +129,12 @@ class PlatformSystem {
     // =========================================================
     resolve(entity) {
         const halfW = entity.width || 20;
-        entity.onGround   = false;
+        entity.onGround = false;
         entity.onPlatform = null;
 
         for (const plat of this.platforms) {
-            const prevY   = entity.y - entity.vy;
+            if (plat._phaseActive === false) continue;
+            const prevY = entity.y - entity.vy;
             const withinX = entity.x + halfW > plat.x && entity.x - halfW < plat.x + plat.w;
             if (!withinX) continue;
 
@@ -143,17 +160,19 @@ class PlatformSystem {
 
         // ---- Wall-side contact detection (non-passThrough platforms only) ----
         // Reset each frame; filled below if touching a wall while airborne.
-        entity.onWall      = false;
-        entity.wallDir     = 0;
+        entity.onWall = false;
+        entity.wallDir = 0;
         entity.wallPlatform = null;
 
         if (!entity.onGround) {
             const WF = 10;   // wall-feel threshold (px)
+            const WALL_RELEASE_EPS = 0.1;
             for (const plat of this.platforms) {
+                if (plat._phaseActive === false) continue;
                 if (plat.passThrough) continue;
 
                 // Vertical overlap: entity body (approx y-90 to y) vs platform surface
-                const eTop  = entity.y - 90;
+                const eTop = entity.y - 90;
                 const eFeet = entity.y;
                 if (eFeet < plat.y + 6 || eTop > plat.y + plat.h) continue;
 
@@ -161,24 +180,42 @@ class PlatformSystem {
                 const rightEdge = entity.x + halfW;
                 if (rightEdge >= plat.x - WF && rightEdge <= plat.x + WF &&
                     entity.x < plat.x + halfW) {
-                    entity.onWall       = true;
-                    entity.wallDir      = 1;           // fighter faces RIGHT toward wall
-                    entity.wallPlatform = plat;
-                    entity.x            = plat.x - halfW;   // snap flush
-                    if (entity.vx > 0) entity.vx = 0;
-                    break;
+                    const penetration = rightEdge - plat.x;
+                    const movingAway = (entity.vx || 0) < -WALL_RELEASE_EPS;
+
+                    // Only clamp when crossing into the wall; near-contact should not pull back.
+                    if (penetration > 0) {
+                        entity.x = plat.x - halfW;
+                        if (entity.vx > 0) entity.vx = 0;
+                    }
+
+                    if (!movingAway || penetration > 0) {
+                        entity.onWall = true;
+                        entity.wallDir = 1;           // fighter faces RIGHT toward wall
+                        entity.wallPlatform = plat;
+                        break;
+                    }
                 }
 
                 // Entity's left edge touching platform's RIGHT face
                 const leftEdge = entity.x - halfW;
                 if (leftEdge <= plat.x + plat.w + WF && leftEdge >= plat.x + plat.w - WF &&
                     entity.x > plat.x + plat.w - halfW) {
-                    entity.onWall       = true;
-                    entity.wallDir      = -1;          // fighter faces LEFT toward wall
-                    entity.wallPlatform = plat;
-                    entity.x            = plat.x + plat.w + halfW;  // snap flush
-                    if (entity.vx < 0) entity.vx = 0;
-                    break;
+                    const penetration = (plat.x + plat.w) - leftEdge;
+                    const movingAway = (entity.vx || 0) > WALL_RELEASE_EPS;
+
+                    // Only clamp when crossing into the wall; near-contact should not pull back.
+                    if (penetration > 0) {
+                        entity.x = plat.x + plat.w + halfW;
+                        if (entity.vx < 0) entity.vx = 0;
+                    }
+
+                    if (!movingAway || penetration > 0) {
+                        entity.onWall = true;
+                        entity.wallDir = -1;          // fighter faces LEFT toward wall
+                        entity.wallPlatform = plat;
+                        break;
+                    }
                 }
             }
         }
@@ -188,9 +225,36 @@ class PlatformSystem {
     //  Random Movement — call once per game frame from GameScene.update()
     // =========================================================
     update(delta) {
+        const dt = delta / 16.667;   // normalise to 60 fps
+
+        // ---- Phase-shift timing update ----
+        for (const plat of this.platforms) {
+            if (!plat._phaseCycleMs) continue;
+
+            plat._phaseTick = (plat._phaseTick + delta) % plat._phaseCycleMs;
+            const inOnWindow = plat._phaseTick < plat._phaseOnMs;
+            const timeToFlip = inOnWindow
+                ? (plat._phaseOnMs - plat._phaseTick)
+                : (plat._phaseCycleMs - plat._phaseTick);
+
+            plat._phaseActive = inOnWindow;
+            plat._phaseWarn = timeToFlip <= plat._phaseWarnMs;
+
+            const wave = Math.sin((plat._phaseTick / plat._phaseCycleMs) * Math.PI * 4);
+            if (inOnWindow) {
+                plat._phaseAlpha = plat._phaseWarn
+                    ? Math.max(0.42, Math.min(0.92, 0.62 + wave * 0.20))
+                    : 1;
+            } else {
+                plat._phaseAlpha = Math.max(0.07, Math.min(0.24, 0.10 + Math.max(0, wave) * 0.10));
+            }
+
+            const img = plat.id ? this._platImages[plat.id] : null;
+            if (img) img.setAlpha(plat._phaseAlpha);
+        }
+
         if (!this._moveCfg.enabled) return;
         const { minVelocity, maxVelocity, moveRange } = this._moveCfg;
-        const dt = delta / 16.667;   // normalise to 60 fps
 
         for (const plat of this.platforms) {
             if (!plat.passThrough || plat._originX === undefined || !plat.id) continue;
@@ -199,7 +263,7 @@ class PlatformSystem {
             // Count down; when timer expires pick a new random velocity
             this._platTimers[id] -= delta;
             if (this._platTimers[id] <= 0) {
-                this._platVels[id]   = minVelocity + Math.random() * (maxVelocity - minVelocity);
+                this._platVels[id] = minVelocity + Math.random() * (maxVelocity - minVelocity);
                 this._platTimers[id] = 1500 + Math.random() * 2500;
             }
 
@@ -223,6 +287,7 @@ class PlatformSystem {
                 const visualX = plat.x + (plat._visualDx || 0);
                 const visualY = plat.y + (plat._visualDy || 0);
                 img.setPosition(visualX + (plat._visualW || plat.w) / 2, visualY);
+                if (plat._phaseCycleMs) img.setAlpha(plat._phaseAlpha);
                 plat._visualBounds = {
                     x: visualX,
                     y: visualY,
@@ -248,8 +313,8 @@ class PlatformSystem {
         // Priority: visualH → visualHeight → displayHeight → natural aspect ratio
         const resolvedH = Number.isFinite(plat.visualH) ? plat.visualH
             : (Number.isFinite(plat.visualHeight) ? plat.visualHeight
-            : (Number.isFinite(plat.displayHeight) ? plat.displayHeight
-            : Math.max(1, resolvedW * (naturalH / Math.max(naturalW, 1)))));
+                : (Number.isFinite(plat.displayHeight) ? plat.displayHeight
+                    : Math.max(1, resolvedW * (naturalH / Math.max(naturalW, 1)))));
 
         // ── Visual X (never affects collision) ───────────────────────────
         const offX = Number.isFinite(plat.imageOffsetX) ? plat.imageOffsetX : 0;
@@ -271,7 +336,7 @@ class PlatformSystem {
         //    Player feet at plat.y = touching visible plank. No floating.
         //
         const anchorY = Number.isFinite(plat.imageAnchorY) ? plat.imageAnchorY : 0;
-        const offY    = Number.isFinite(plat.imageOffsetY) ? plat.imageOffsetY : 0;
+        const offY = Number.isFinite(plat.imageOffsetY) ? plat.imageOffsetY : 0;
         // Image top = plat.y shifted up by anchor fraction, then fine-tuned by offY
         const visualY = plat.y - anchorY * resolvedH + offY;
 
@@ -285,6 +350,11 @@ class PlatformSystem {
         for (const plat of this.platforms) {
             // Already rendered via Phaser Image — skip
             if (plat.id && this._platImages[plat.id]) continue;
+
+            if (plat._phaseActive === false) {
+                this._drawPhaseGhost(g, plat);
+                continue;
+            }
 
             if (!plat.passThrough) {
                 this._drawGround(g, plat);
@@ -315,6 +385,8 @@ class PlatformSystem {
                 return { groundFill: 0x0d0020, glowFill: 0x4400cc, lineColor: 0x8b00ff, glowColor: 0xcc66ff, platFill: 0x1a004d };
             case 'fptsoftware':
                 return { groundFill: 0x020c1a, glowFill: 0x006622, lineColor: 0x39ff14, glowColor: 0x00ff88, platFill: 0x00101a };
+            case 'voidrift':
+                return { groundFill: 0x090312, glowFill: 0x4e0f84, lineColor: 0xe968ff, glowColor: 0xb358ff, platFill: 0x140624 };
             default:
                 return { groundFill: 0x080814, glowFill: 0x0050c8, lineColor: 0x00e5ff, glowColor: 0x40e8ff, platFill: 0x001a40 };
         }
@@ -322,36 +394,65 @@ class PlatformSystem {
 
     _drawGround(g, p) {
         const t = this._theme();
-        g.fillStyle(t.groundFill, 0.92);
+        const a = Number.isFinite(p._phaseAlpha) ? p._phaseAlpha : 1;
+        g.fillStyle(t.groundFill, 0.92 * a);
         g.fillRect(p.x, p.y, p.w, p.h);
 
-        g.fillStyle(t.glowFill, 0.12);
+        g.fillStyle(t.glowFill, 0.12 * a);
         g.fillRect(p.x, p.y, p.w, 10);
-        g.fillStyle(t.glowFill, 0.05);
+        g.fillStyle(t.glowFill, 0.05 * a);
         g.fillRect(p.x, p.y - 4, p.w, 4);
 
-        g.lineStyle(2, t.lineColor, 0.65);
+        g.lineStyle(2, t.lineColor, 0.65 * a);
         g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x + p.w, p.y); g.strokePath();
 
-        g.lineStyle(6, t.glowColor, 0.18);
+        g.lineStyle(6, t.glowColor, 0.18 * a);
         g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x + p.w, p.y); g.strokePath();
     }
 
     _drawPlatform(g, p) {
         const rx = 8;
-        const t  = this._theme();
+        const t = this._theme();
+        const a = Number.isFinite(p._phaseAlpha) ? p._phaseAlpha : 1;
 
-        g.fillStyle(t.platFill, 0.58);
+        g.fillStyle(t.platFill, 0.58 * a);
         g.fillRoundedRect(p.x, p.y, p.w, p.h, rx);
 
-        g.lineStyle(1.5, t.lineColor, 0.68);
+        g.lineStyle(1.5, t.lineColor, 0.68 * a);
         g.strokeRoundedRect(p.x, p.y, p.w, p.h, rx);
 
-        g.lineStyle(1, t.glowColor, 0.35);
+        g.lineStyle(1, t.glowColor, 0.35 * a);
         g.beginPath(); g.moveTo(p.x + rx, p.y + 1); g.lineTo(p.x + p.w - rx, p.y + 1); g.strokePath();
 
-        g.lineStyle(4, t.lineColor, 0.18);
+        g.lineStyle(4, t.lineColor, 0.18 * a);
         g.beginPath(); g.moveTo(p.x + rx, p.y + p.h); g.lineTo(p.x + p.w - rx, p.y + p.h); g.strokePath();
+
+        if (p._phaseWarn) {
+            const pulse = 0.35 + 0.55 * Math.abs(Math.sin((p._phaseTick || 0) * 0.03));
+            g.lineStyle(2.2, t.glowColor, pulse * 0.65 * a);
+            g.beginPath();
+            g.moveTo(p.x + 6, p.y + p.h * 0.5);
+            g.lineTo(p.x + p.w - 6, p.y + p.h * 0.5);
+            g.strokePath();
+        }
+    }
+
+    _drawPhaseGhost(g, p) {
+        const t = this._theme();
+        const rx = 8;
+        const a = Number.isFinite(p._phaseAlpha) ? p._phaseAlpha : 0.12;
+
+        g.fillStyle(0xffffff, 0.10 * a);
+        g.fillRoundedRect(p.x, p.y, p.w, p.h, rx);
+
+        g.lineStyle(1.2, t.glowColor, 0.75 * a);
+        g.strokeRoundedRect(p.x, p.y, p.w, p.h, rx);
+
+        g.lineStyle(1, t.lineColor, 0.65 * a);
+        g.beginPath();
+        g.moveTo(p.x + 8, p.y + p.h - 2);
+        g.lineTo(p.x + p.w - 8, p.y + p.h - 2);
+        g.strokePath();
     }
 }
 

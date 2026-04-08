@@ -153,6 +153,62 @@ body {
     width: 100%;
 }
 
+.ai-diff-block {
+    width: 100%;
+    border: 1.5px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--r);
+    padding: 12px;
+}
+
+.ai-diff-title {
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: rgba(235, 245, 255, 0.9);
+    margin-bottom: 10px;
+}
+
+.ai-diff-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.ai-diff-btn {
+    font-size: 0.8rem;
+    padding: 11px 10px;
+    letter-spacing: 0.08em;
+}
+
+.ai-diff-btn.easy {
+    border-color: rgba(120, 255, 170, 0.45);
+    background: rgba(120, 255, 170, 0.12);
+}
+
+.ai-diff-btn.medium {
+    border-color: rgba(255, 210, 80, 0.45);
+    background: rgba(255, 210, 80, 0.12);
+}
+
+.ai-diff-btn.hard {
+    border-color: rgba(255, 90, 90, 0.5);
+    background: rgba(255, 90, 90, 0.12);
+}
+
+.ai-diff-btn.selected {
+    box-shadow: 0 0 22px rgba(255, 255, 255, 0.2), inset 0 0 12px rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+    .ai-diff-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 .menu-btn {
     display: block;
     width: 100%;
@@ -668,9 +724,12 @@ kbd {
 }
 
 @keyframes badge-glow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 2px rgba(0, 0, 0, 0.22);
     }
+
     50% {
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 0 4px rgba(0, 0, 0, 0.32);
     }
@@ -1412,15 +1471,21 @@ kbd {
    MAP SELECTION SCREEN
    ============================================================ */
 .map-select-wrap {
-    max-width: 860px;
+    max-width: 1100px;
 }
 
 .map-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 18px;
     width: 100%;
     margin-bottom: 16px;
+}
+
+@media (max-width: 980px) {
+    .map-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 640px) {
@@ -1450,7 +1515,7 @@ kbd {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 60%);
     pointer-events: none;
 }
 
@@ -1494,10 +1559,48 @@ kbd {
     background: rgba(57, 255, 20, 0.07);
 }
 
+.map-card.map-card-void::after {
+    content: '';
+    position: absolute;
+    left: -15%;
+    top: -10%;
+    width: 130%;
+    height: 120%;
+    background: radial-gradient(circle at 50% 55%, rgba(227, 76, 255, 0.24) 0%, rgba(114, 30, 196, 0.10) 34%, rgba(0, 0, 0, 0) 72%);
+    pointer-events: none;
+    animation: voidPulse 3.2s ease-in-out infinite;
+}
+
+@keyframes voidPulse {
+
+    0%,
+    100% {
+        opacity: 0.45;
+        transform: scale(0.95);
+    }
+
+    50% {
+        opacity: 0.9;
+        transform: scale(1.02);
+    }
+}
+
+.map-card[data-map="voidrift"] {
+    border-color: rgba(196, 78, 255, 0.52);
+    background: linear-gradient(160deg, rgba(44, 10, 88, 0.36), rgba(9, 7, 24, 0.35));
+}
+
+.map-card[data-map="voidrift"]:hover,
+.map-card[data-map="voidrift"].selected {
+    border-color: rgba(226, 120, 255, 0.95);
+    box-shadow: 0 0 32px rgba(193, 90, 255, 0.45), inset 0 0 24px rgba(147, 62, 255, 0.22);
+    background: linear-gradient(160deg, rgba(60, 16, 120, 0.52), rgba(9, 7, 24, 0.52));
+}
+
 .map-card-icon {
     font-size: 2.6rem;
     line-height: 1;
-    filter: drop-shadow(0 0 8px rgba(255,255,255,0.25));
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.25));
 }
 
 .map-card-name {
@@ -1543,4 +1646,10 @@ kbd {
     background: rgba(57, 255, 20, 0.12);
     color: #88ff66;
     border: 1px solid rgba(57, 255, 20, 0.30);
+}
+
+.void-tag {
+    background: rgba(198, 92, 255, 0.20);
+    color: #f0b8ff;
+    border: 1px solid rgba(198, 92, 255, 0.45);
 }

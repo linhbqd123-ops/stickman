@@ -1,154 +1,112 @@
 'use strict';
 /* =========================================================
-   TOURNAMENT — Single-elimination bracket for 4-8 players
+   TOURNAMENT — Tower mode (player climbs sequential floors)
    ========================================================= */
 
 class Tournament {
     /**
      * @param {Array<{name:string, color:string, shadow:string, isPlayer:boolean, difficulty:number}>} entrants
-     *   entrants.length must be 4 or 8
+     *   entrants must include exactly one player and 1+ AI opponents.
+     * @param {{randomMapPool?: string[], finalMapKey?: string}} options
      */
-    constructor(entrants) {
-        // Pad to next power of 2 if needed
+    constructor(entrants, options = {}) {
         this.entrants = entrants.slice();
-        this.size = this._nextPow2(this.entrants.length);
+        this.player = this.entrants.find(e => e && e.isPlayer) || this.entrants[0] || {
+            name: 'PLAYER 1', isPlayer: true, color: '#00e5ff', shadow: 'rgba(0,229,255,0.5)', difficulty: 0,
+        };
 
-        // Fill byes
-        while (this.entrants.length < this.size) {
-            this.entrants.push({ name: 'BYE', isBye: true, color: '#555', shadow: '' });
-        }
+        const allMaps = Object.keys((window.CONFIG && CONFIG.MAPS) || {});
+        this.finalMapKey = options.finalMapKey || allMaps[0] || '';
+        const inputPool = Array.isArray(options.randomMapPool) ? options.randomMapPool : [];
+        const validPool = inputPool.filter(k => allMaps.includes(k) && k !== this.finalMapKey);
+        this.randomMapPool = validPool.length ? validPool : allMaps.filter(k => k !== this.finalMapKey);
+        this._lastRandomMap = null;
 
-        this.rounds = [];   // rounds[r][m] = { p1Idx, p2Idx, winner:null }
-        this.current = 0;    // current round index (0-based)
-        this.matchIdx = 0;    // match index within current round
+        const opponents = this.entrants.filter(e => e && !e.isPlayer);
+        this.floors = opponents.map((opp, i) => ({
+            round: i + 1,
+            opponent: opp,
+            mapKey: this._pickMapForFloor(i, opponents.length),
+            cleared: false,
+            failed: false,
+        }));
 
-        this._buildBracket();
-    }
-
-    _nextPow2(n) {
-        let p = 1;
-        while (p < n) p <<= 1;
-        return p;
-    }
-
-    _buildBracket() {
-        // First round: pair sequential entrants
-        const firstRound = [];
-        for (let i = 0; i < this.size; i += 2) {
-            firstRound.push({ p1: i, p2: i + 1, winner: null });
-        }
-        this.rounds.push(firstRound);
-
-        // Build subsequent rounds as placeholders
-        let prev = firstRound;
-        while (prev.length > 1) {
-            const next = [];
-            for (let i = 0; i < prev.length; i += 2) {
-                next.push({ p1: null, p2: null, winner: null });
-            }
-            this.rounds.push(next);
-            prev = next;
-        }
+        this.current = 0;      // current floor index
+        this._over = this.floors.length === 0;
+        this._champion = this._over ? this.player : null;
+        this.failedAt = 0;
+        this.clearedCount = 0;
     }
 
     /** Return the current match, or null if tournament is over */
     currentMatch() {
-        if (this.current >= this.rounds.length) return null;
-        const round = this.rounds[this.current];
-        if (this.matchIdx >= round.length) return null;
-        const m = round[this.matchIdx];
-        // Skip BYE matches
-        const p1 = this.entrants[m.p1];
-        const p2 = this.entrants[m.p2];
-        return { p1, p2, matchObj: m };
+        if (this._over || this.current >= this.floors.length) return null;
+        const floor = this.floors[this.current];
+        return {
+            p1: this.player,
+            p2: floor.opponent,
+            round: floor.round,
+            mapKey: floor.mapKey,
+            matchObj: floor,
+        };
     }
 
     /** Record the winner of the current match (0=p1 wins, 1=p2 wins) */
     recordWinner(side) {
-        if (this.current >= this.rounds.length) return;
-        const round = this.rounds[this.current];
-        const m = round[this.matchIdx];
-        const winner = side === 0 ? m.p1 : m.p2;
-        m.winner = winner;
+        if (this._over || this.current >= this.floors.length) return;
 
-        // Advance
-        this.matchIdx++;
-        if (this.matchIdx >= round.length) {
-            // Move to next round, fill in participants
+        const floor = this.floors[this.current];
+        if (side === 0) {
+            floor.cleared = true;
+            this.clearedCount++;
             this.current++;
-            this.matchIdx = 0;
-            if (this.current < this.rounds.length) {
-                const winners = round.map(mm => mm.winner);
-                const nextRound = this.rounds[this.current];
-                for (let i = 0; i < nextRound.length; i++) {
-                    nextRound[i].p1 = winners[i * 2];
-                    nextRound[i].p2 = winners[i * 2 + 1];
-                }
-                // Auto-skip BYE matches
-                this._skipByes();
+            if (this.current >= this.floors.length) {
+                this._over = true;
+                this._champion = this.player;
             }
-        }
-        // Skip current BYE match in same round
-        else {
-            this._skipByes();
-        }
-    }
-
-    _skipByes() {
-        while (this.current < this.rounds.length) {
-            const round = this.rounds[this.current];
-            if (this.matchIdx >= round.length) { this.current++; this.matchIdx = 0; continue; }
-            const m = round[this.matchIdx];
-            const p1 = this.entrants[m.p1];
-            const p2 = this.entrants[m.p2];
-            if (p1.isBye || p2.isBye) {
-                // Auto-advance the non-bye
-                const winner = p1.isBye ? m.p2 : m.p1;
-                m.winner = winner;
-                this.matchIdx++;
-            } else { break; }
+        } else {
+            floor.failed = true;
+            this.failedAt = floor.round;
+            this._over = true;
+            this._champion = floor.opponent;
         }
     }
 
-    isOver() { return this.current >= this.rounds.length; }
+    isOver() { return this._over; }
 
     champion() {
-        if (!this.isOver()) return null;
-        const lastRound = this.rounds[this.rounds.length - 1];
-        return this.entrants[lastRound[0].winner];
+        if (!this._over) return null;
+        return this._champion;
     }
 
     /**
      * Render the bracket as an HTML string (for injection into DOM).
-     * Highlights current match.
+     * Tower floor cards (easy -> boss).
      */
     renderHTML() {
         let html = '<div class="bracket-tree">';
-        for (let r = 0; r < this.rounds.length; r++) {
-            html += `<div class="bracket-col">`;
-            const label = r === this.rounds.length - 1 ? 'FINAL'
-                : r === this.rounds.length - 2 ? 'SEMI-FINAL'
-                    : `ROUND ${r + 1}`;
-            html += `<div class="bracket-round-label">${label}</div>`;
-            for (let m = 0; m < this.rounds[r].length; m++) {
-                const match = this.rounds[r][m];
-                const isCurrent = (r === this.current && m === this.matchIdx);
-                const cls = isCurrent ? ' active' : '';
-                html += `<div class="bracket-match${cls}">`;
+        html += '<div class="bracket-col">';
+        html += '<div class="bracket-round-label">TOWER</div>';
 
-                const p1 = match.p1 !== null ? this.entrants[match.p1] : null;
-                const p2 = match.p2 !== null ? this.entrants[match.p2] : null;
-                const w = match.winner !== null ? match.winner : -1;
+        for (let i = 0; i < this.floors.length; i++) {
+            const floor = this.floors[i];
+            const isCurrent = !this._over && i === this.current;
+            const cls = isCurrent ? ' active' : '';
+            const tag = (i === this.floors.length - 1) ? 'BOSS FLOOR' : `FLOOR ${floor.round}`;
+            const mark = floor.cleared ? '✔' : (floor.failed ? '✖' : '•');
 
-                html += this._slotHTML(p1, match.p1 === w, p1 && p1.color);
-                html += '<div class="bracket-vs">vs</div>';
-                html += this._slotHTML(p2, match.p2 === w, p2 && p2.color);
-
-                html += '</div>';
+            html += `<div class="bracket-match${cls}">`;
+            html += `<div class="bracket-round-label" style="font-size:0.68rem;margin-bottom:8px;">${tag} ${mark}</div>`;
+            if (floor.mapKey) {
+                html += `<div class="bracket-round-label" style="font-size:0.62rem;margin-bottom:8px;opacity:0.8;">MAP: ${floor.mapKey.toUpperCase()}</div>`;
             }
+            html += this._slotHTML(this.player, floor.cleared && !floor.failed, this.player && this.player.color);
+            html += '<div class="bracket-vs">vs</div>';
+            html += this._slotHTML(floor.opponent, floor.failed, floor.opponent && floor.opponent.color);
             html += '</div>';
         }
-        html += '</div>';
+
+        html += '</div>'; // bracket-col
         return html;
     }
 
@@ -160,13 +118,30 @@ class Tournament {
         return `<div class="bracket-slot${winCls}" ${style}>${name}${isWinner ? ' 🏆' : ''}</div>`;
     }
 
-    /** How many rounds total */
-    get totalRounds() { return this.rounds.length; }
+    /** How many floors total */
+    get totalRounds() { return this.floors.length; }
     get roundLabel() {
-        if (this.current >= this.rounds.length) return 'COMPLETE';
-        return this.current === this.rounds.length - 1 ? 'GRAND FINAL'
-            : this.current === this.rounds.length - 2 ? 'SEMI-FINAL'
-                : `ROUND ${this.current + 1}`;
+        if (this._over) return this._champion && this._champion.isPlayer ? 'TOWER CLEARED' : 'TOWER FAILED';
+        if (this.current >= this.floors.length) return 'COMPLETE';
+        return this.current === this.floors.length - 1
+            ? `BOSS FLOOR (${this.current + 1}/${this.floors.length})`
+            : `FLOOR ${this.current + 1}/${this.floors.length}`;
+    }
+
+    _pickMapForFloor(index, total) {
+        if (index >= total - 1) return this.finalMapKey;
+        if (!this.randomMapPool.length) return this.finalMapKey;
+
+        if (this.randomMapPool.length === 1) {
+            this._lastRandomMap = this.randomMapPool[0];
+            return this._lastRandomMap;
+        }
+
+        const options = this.randomMapPool.filter(k => k !== this._lastRandomMap);
+        const pool = options.length ? options : this.randomMapPool;
+        const next = pool[Math.floor(Math.random() * pool.length)];
+        this._lastRandomMap = next;
+        return next;
     }
 }
 
