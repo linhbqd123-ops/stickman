@@ -120,7 +120,8 @@ const CONFIG = Object.freeze({
             type: 'light', context: 'air', dir: 'down',
             dmg: 7, force: 9, delay_start: 0, delay_end: 140,
             range: 80, yWin: 60,
-            diveVx: 9, diveVy: 5
+            diveVx: 11, diveVy: 6.5,
+            sustainedHit: true   // keep applying dive velocity + multi-tick hitbox
         },
 
         // ── HEAVY ATTACKS  (delay_start: 70 ms for telegraphed weight) ────

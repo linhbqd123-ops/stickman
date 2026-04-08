@@ -4,7 +4,8 @@
     "description": "Platform fighter with online multiplayer via WebRTC (PeerJS)",
     "type": "module",
     "scripts": {
-        "build": "esbuild js/main.js --bundle --outfile=dist/bundle.js --sourcemap --minify",
+        "build": "esbuild js/main.js --bundle --outfile=dist/bundle.js --minify",
+        "build:dev": "esbuild js/main.js --bundle --outfile=dist/bundle.js --sourcemap",
         "dev": "esbuild js/main.js --bundle --outfile=dist/bundle.js --sourcemap --watch",
         "serve": "serve . --listen 3000 --single",
         "start": "concurrently \"npm run dev\" \"npm run serve\""

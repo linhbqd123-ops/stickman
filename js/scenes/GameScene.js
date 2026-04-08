@@ -52,6 +52,9 @@ class GameScene extends Phaser.Scene {
         this._matchElapsedMs = 0;
         this._pendingInputEdges = { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
         this._inputEdgeTotals = { up: 0, light: 0, heavy: 0, dodge: 0, drop: 0 };
+        // World snapshot optimisation: track whether world had content last tick.
+        // Allows skipping the world portion of state packets when nothing is active.
+        this._hadWorldContent = false;
     }
 
     // =========================================================
@@ -265,9 +268,6 @@ class GameScene extends Phaser.Scene {
     //  Phaser update — called every frame
     // =========================================================
     update(time, delta) {
-        // Always render (so pause screen shows correctly)
-        this._render();
-
         const blocked = this.roundPaused || this.isPaused || this.matchOver;
         if (blocked) {
             if (this.online && Net.role === 'client') {
@@ -280,6 +280,8 @@ class GameScene extends Phaser.Scene {
             } else if (this.online && Net.role === 'host') {
                 this._hostBroadcastNetState(delta);
             }
+            // Render while paused so overlays / pause screen display correctly.
+            this._render();
             return;
         }
 
@@ -323,6 +325,10 @@ class GameScene extends Phaser.Scene {
             UI.updateStocks(this.fighters);
             UI.updateEnergy(this.fighters);
         }
+
+        // Render AFTER physics so Phaser's draw pass shows the freshest state.
+        // (Previously rendered at the top, which caused a 1-frame visual lag.)
+        this._render();
     }
 
     // =========================================================
@@ -2532,13 +2538,18 @@ class GameScene extends Phaser.Scene {
 
         while (this._netStateAccum >= this._netStateInterval) {
             this._netStateAccum -= this._netStateInterval;
+            let forceFullWorld = false;
             if (this._netFullStateTimer >= this._forceFullStateEveryMs) {
                 this._prevSnapshot = null; // periodic hard refresh baseline
+                this._hadWorldContent = true; // force world resync on full-state tick
                 this._netFullStateTimer = 0;
+                forceFullWorld = true;
             }
 
             const fighters = this._makeSnapshot();
-            const world = this._makeWorldSnapshot();
+            const world = this._makeWorldSnapshot(forceFullWorld);
+            // Skip packet entirely when both fighters and world are empty/unchanged.
+            if (fighters === null && world === null) continue;
             Net.broadcastState({
                 seq: ++this._netStateSeq,
                 t: Math.round(this.time.now || 0),
@@ -2673,7 +2684,29 @@ class GameScene extends Phaser.Scene {
         return delta.length > 0 ? delta : null; // null = nothing changed, no packet sent
     }
 
-    _makeWorldSnapshot() {
+    _makeWorldSnapshot(force = false) {
+        // Determine whether there is any active world content this tick.
+        const hasPhasedPlatforms = this._platforms && this._platforms.platforms
+            ? this._platforms.platforms.some(p => p._phaseCycleMs)
+            : false;
+        const hasContent =
+            this._skillBoxes.length > 0 ||
+            this._projectiles.length > 0 ||
+            this._meteors.length > 0 ||
+            this._netSaitamaCast != null ||
+            hasPhasedPlatforms;
+
+        if (!hasContent) {
+            if (this._hadWorldContent || force) {
+                // Transition: send one empty flush so clients clear their local state.
+                this._hadWorldContent = false;
+                return { platforms: [], skillBoxes: [], projectiles: [], meteors: [], saitamaCast: null };
+            }
+            // Nothing active, nothing changed — skip world entirely.
+            return null;
+        }
+
+        this._hadWorldContent = true;
         return {
             platforms: (this._platforms && this._platforms.platforms)
                 ? this._platforms.platforms

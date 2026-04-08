@@ -562,8 +562,35 @@ class Fighter {
 
         // Schedule primary hit — use Phaser timer so it respects scene pause
         const hitDelay = atk.delay_start + 40;
+
+        // sustainedHit attacks (e.g. light_air_down) fire the hitbox every 50ms
+        // throughout the active window so the fighter's motion can connect at any
+        // point during the dive, not only at a single fixed instant.
+        if (atk.sustainedHit) {
+            const activeEnd = atk.delay_start + ACTIVE_WIN + atk.delay_end; // totalDur
+            const hitInterval = 50;
+            const hitOpps = new Set();
+            for (let t = hitDelay; t <= activeEnd; t += hitInterval) {
+                const snapT = t;
+                this._scheduleTimer(snapT, () => {
+                    if (!this || this.state === 'dead' || this._respawning) return;
+                    if (this.attackType !== atkKey) return;
+                    for (const opp of opponents) {
+                        if (!opp || opp.state === 'dead' || opp._respawning) continue;
+                        if (opp.team === this.team) continue;
+                        if (hitOpps.has(opp)) continue; // each opp hit once per swing
+                        if (this._checkHit(atkKey, opp, atk)) {
+                            this._applyHit(atkKey, opp, atk, particles);
+                            hitOpps.add(opp);
+                        }
+                    }
+                });
+            }
+        }
+
         this._scheduleTimer(hitDelay, () => {
             if (!this || this.state === 'dead' || this._respawning) return;
+            if (atk.sustainedHit) return; // handled above
 
             let hitAny = false;
             for (const opp of opponents) {
@@ -807,6 +834,16 @@ class Fighter {
             if (diveAtk && this.input && this.input.down) this.vy = diveAtk.diveVy;
         }
 
+        // light_air_down: sustain diagonal dive velocity throughout the attack so
+        // the fighter keeps travelling on the dive arc and doesn't stall mid-air.
+        if (this.state === 'attack' && this.attackType === 'light_air_down' && !this.onGround) {
+            const diveAtk = CONFIG.ATTACKS['light_air_down'];
+            if (diveAtk) {
+                this.vx = this.facing * diveAtk.diveVx;
+                this.vy = Math.min(this.vy, diveAtk.diveVy); // cap fall, allow gravity past it
+            }
+        }
+
         if (this.dashMomentum > 0) {
             const momentumVx = this.dashMomentumDir * 10;
             if (this.onGround) {
@@ -905,7 +942,18 @@ class Fighter {
         // Using a counter (not boolean) lets two rapid rising edges (e.g. double-jump)
         // both arrive in the same host frame without the second being silently lost.
         const nk = '_netRise_' + key;
-        if (this[nk] > 0) { this[nk]--; return true; }
+        if (this[nk] > 0) {
+            this[nk]--;
+            // After consuming the counter, sync _prevInput[key] to match the current
+            // input state.  For network-driven fighters, setInput() is only called on
+            // packet arrival (not every frame), so _prevInput can stay stale across
+            // several host frames.  Without this sync the fallback branch below would
+            // fire as a spurious second rising-edge on the very next frame — which
+            // causes an immediate ghost double-jump that consumes _airJumpsUsed before
+            // the guest's intentional double-jump packet even arrives.
+            this._prevInput[key] = !!this.input[key];
+            return true;
+        }
         return !!(this.input[key] && !this._prevInput[key]);
     }
 
