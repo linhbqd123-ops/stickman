@@ -8,6 +8,17 @@ const CONFIG = Object.freeze({
     WIDTH: 1280,
     HEIGHT: 720,
 
+    // Online netcode tuning (30Hz pattern for host state + client input)
+    NET: {
+        STATE_HZ: 30,
+        INPUT_HZ: 30,
+        FULL_STATE_EVERY_MS: 900,
+        REMOTE_LERP_FAST: 0.5,
+        REMOTE_LERP_MEDIUM: 0.34,
+        REMOTE_LERP_SLOW: 0.16,
+        REMOTE_SNAP_DIST: 180,
+    },
+
     // Blast zones (losing a stock when crossing these)
     // BLAST_RIGHT expanded to cover the widest map (1600px ground + 300px margin)
     BLAST_LEFT: -300,

@@ -212,13 +212,18 @@ class MultiplayerManager {
     ───────────────────────────────────────────────────── */
 
     /**
-     * Host → broadcast authoritative fighter snapshot each frame.
-     * Keeps payload lean: only variable fighter fields.
-     * @param {Object[]} fighterSnapshots
+     * Host → broadcast authoritative state each frame.
+     * Supports either legacy fighter-array payload or structured payload:
+     *   { fighters: Object[]|null, world: Object|null }
+     * @param {Object[]|Object} payload
      */
-    broadcastState(fighterSnapshots) {
+    broadcastState(payload) {
         if (this.role !== 'host' || !this.connections.length) return;
-        this._broadcast({ type: 'state', fighters: fighterSnapshots });
+        if (Array.isArray(payload)) {
+            this._broadcast({ type: 'state', fighters: payload });
+            return;
+        }
+        this._broadcast({ type: 'state', state: payload });
     }
 
     /**
@@ -375,7 +380,13 @@ class MultiplayerManager {
 
             case 'state': {
                 if (this.role !== 'client') break;
-                if (this.onStateReceived) this.onStateReceived(msg.fighters);
+                if (this.onStateReceived) {
+                    if (msg.state && typeof msg.state === 'object') {
+                        this.onStateReceived(msg.state);
+                    } else {
+                        this.onStateReceived({ fighters: msg.fighters || null, world: null });
+                    }
+                }
                 break;
             }
 

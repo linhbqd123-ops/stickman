@@ -33,6 +33,18 @@ class GameScene extends Phaser.Scene {
         this._netFrameTick = 0;
         this._lastSentInput = null;
         this._prevSnapshot = null;  // delta compression baseline
+
+        const netCfg = (CONFIG && CONFIG.NET) || {};
+        const stateHz = Math.max(10, Number(netCfg.STATE_HZ) || 30);
+        const inputHz = Math.max(10, Number(netCfg.INPUT_HZ) || 30);
+        this._netStateInterval = Math.round(1000 / stateHz);
+        this._netInputInterval = Math.round(1000 / inputHz);
+        this._forceFullStateEveryMs = Math.max(300, Number(netCfg.FULL_STATE_EVERY_MS) || 900);
+        this._netStateAccum = 0;
+        this._netInputAccum = 0;
+        this._netFullStateTimer = 0;
+        this._netStateSeq = 0;
+        this._lastRecvStateSeq = 0;
     }
 
     // =========================================================
@@ -141,6 +153,7 @@ class GameScene extends Phaser.Scene {
         this._projIdCounter = 0;
         // ---- V2 meteors (FPT ultimate) ----
         this._meteors = [];
+        this._meteorIdCounter = 0;
         // ---- Saitama state ----
         this._saitamaOverlay = null;
         this._saitamaText = null;
@@ -169,6 +182,7 @@ class GameScene extends Phaser.Scene {
 
         // ---- V2 Skill Drop System ----
         this._skillBoxes = [];   // SkillBox objects (V2 ultimate items on map)
+        this._skillBoxIdCounter = 0;
         window.SkillDropSystem = {
             dropFromFighter: (fighter) => this._dropUltimateFromFighter(fighter),
             spawnBox: (x, y, id) => this._spawnSkillBox(x, y, id),
@@ -210,17 +224,22 @@ class GameScene extends Phaser.Scene {
 
         // ---- Game-level events from DOM buttons ----
         this.game.events.on('game:resume', this._resumeFromPause, this);
+        this.game.events.on('game:rematch', this._rematchFromPause, this);
+        this.game.events.on('game:toggle-guide', this._togglePauseGuide, this);
         this.game.events.on('game:exit', this._exitToMenu, this);
 
         // ---- V2 skill-box spawn timer (first ~8 s in, then every configured interval) ----
-        const skillSpawnInterval = CONFIG.SKILL_DROP.mapSpawnInterval || CONFIG.SKILL_SPAWN_INTERVAL;
-        this.time.addEvent({
-            delay: skillSpawnInterval,
-            repeat: -1,
-            callback: this._spawnRandomSkillBox,
-            callbackScope: this,
-            startAt: Math.max(0, skillSpawnInterval - 8000),
-        });
+        const authoritativeWorld = !this.online || Net.role === 'host';
+        if (authoritativeWorld) {
+            const skillSpawnInterval = CONFIG.SKILL_DROP.mapSpawnInterval || CONFIG.SKILL_SPAWN_INTERVAL;
+            this.time.addEvent({
+                delay: skillSpawnInterval,
+                repeat: -1,
+                callback: this._spawnRandomSkillBox,
+                callbackScope: this,
+                startAt: Math.max(0, skillSpawnInterval - 8000),
+            });
+        }
 
         // ---- Fight start countdown ----
         UI.flashFightStart('FIGHT!', 1000);
@@ -243,33 +262,52 @@ class GameScene extends Phaser.Scene {
         if (this.roundPaused || this.isPaused || this.matchOver) return;
 
         this._updateInput();
-        this._updateBots(delta);
-        this._updateFighters(delta);
-        this._platforms.update(delta);
-        this._particles.update(delta);
-        this._updateSkillBoxes(delta);
-        this._updateProjectiles(delta);
-        this._updateMeteors(delta);
-        this._updateCamera(delta);
-        this._checkMatchOver();
+        const isClientOnline = this.online && Net.role === 'client';
 
-        // ---- Online networking ----
-        if (this.online) {
-            if (Net.role === 'host') {
-                // Broadcast authoritative state every frame so guest always has
-                // the latest physics result. Delta compression keeps bandwidth low:
-                // idle fighters produce no changed fields → packet skipped entirely.
-                const snap = this._makeSnapshot();
-                if (snap) Net.broadcastState(snap);
-            } else if (Net.role === 'client') {
-                // Send input every frame so host never misses a transient press.
-                this._sendLocalInput();
-                // Apply the latest server snapshot once per reception.
-                // Host broadcasts every frame; guest applies each packet once so
-                // the same snapshot is never re-applied on subsequent frames.
-                if (this._newSnapshot) {
-                    this._applySnapshot(this._newSnapshot);
-                    this._newSnapshot = null;
+        if (isClientOnline) {
+            // Client: host-authoritative simulation.
+            this._sendLocalInput(delta);
+            if (this._newSnapshot) {
+                const payload = this._newSnapshot;
+                if (payload.world) this._applyWorldSnapshot(payload.world);
+                if (payload.fighters) this._applySnapshot(payload.fighters);
+                this._newSnapshot = null;
+            }
+
+            this._updateFighters(delta);
+            this._updateCamera(delta);
+            this._checkMatchOver();
+        } else {
+            // Offline + host simulation (authoritative).
+            this._updateBots(delta);
+            this._updateFighters(delta);
+            this._platforms.update(delta);
+            this._particles.update(delta);
+            this._updateSkillBoxes(delta);
+            this._updateProjectiles(delta);
+            this._updateMeteors(delta);
+            this._updateCamera(delta);
+            this._checkMatchOver();
+
+            if (this.online && Net.role === 'host') {
+                this._netStateAccum += delta;
+                this._netFullStateTimer += delta;
+
+                while (this._netStateAccum >= this._netStateInterval) {
+                    this._netStateAccum -= this._netStateInterval;
+                    if (this._netFullStateTimer >= this._forceFullStateEveryMs) {
+                        this._prevSnapshot = null; // periodic hard refresh baseline
+                        this._netFullStateTimer = 0;
+                    }
+
+                    const fighters = this._makeSnapshot();
+                    const world = this._makeWorldSnapshot();
+                    Net.broadcastState({
+                        seq: ++this._netStateSeq,
+                        t: Math.round(this.time.now || 0),
+                        fighters,
+                        world,
+                    });
                 }
             }
         }
@@ -290,6 +328,8 @@ class GameScene extends Phaser.Scene {
         if (this._platforms) this._platforms.destroy();
         // Remove game-level event listeners to avoid stacking
         this.game.events.off('game:resume', this._resumeFromPause, this);
+        this.game.events.off('game:rematch', this._rematchFromPause, this);
+        this.game.events.off('game:toggle-guide', this._togglePauseGuide, this);
         this.game.events.off('game:exit', this._exitToMenu, this);
         // Clear GameEffects reference
         window.GameEffects = null;
@@ -677,27 +717,46 @@ class GameScene extends Phaser.Scene {
     }
 
     _updateFighters(delta) {
-        for (const f of this.fighters) {
-            // Online client: remote fighters are driven by server snapshots.
-            // Only advance the animation tick locally so they render smoothly
-            // between server updates. Full physics runs only on host.
-            if (this.online && Net.role === 'client' && !f._isLocalNet) {
+        if (this.online && Net.role === 'client') {
+            // Client never runs authoritative fighter physics/combat.
+            for (const f of this.fighters) {
                 f.tick += delta / 16.667;
-                if (f.invTimer > 0) f.invTimer -= delta;
-                if (f.hurtTimer > 0) f.hurtTimer -= delta;
-                // Adaptive lerp toward server-authoritative position.
-                // Larger distance → faster catch-up; very close → barely moves
-                // so the fighter doesn't jitter when already accurate.
-                if (f._interpTarget) {
+                if (f.invTimer > 0) f.invTimer = Math.max(0, f.invTimer - delta);
+                if (f.hurtTimer > 0) f.hurtTimer = Math.max(0, f.hurtTimer - delta);
+
+                if (f.atkTimer > 0) {
+                    f.atkTimer = Math.max(0, f.atkTimer - delta);
+                    if (f.atkDuration > 0) {
+                        f.atkProgress = 1 - (f.atkTimer / f.atkDuration);
+                    }
+                } else {
+                    f.atkProgress = 0;
+                }
+
+                // Remote fighters are lerped between host snapshots.
+                if (!f._isLocalNet && f._interpTarget) {
                     const dx = f._interpTarget.x - f.x;
                     const dy = f._interpTarget.y - f.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    const t = dist > 120 ? 0.55 : (dist > 30 ? 0.35 : 0.15);
-                    f.x += dx * t;
-                    f.y += dy * t;
+                    const netCfg = (CONFIG && CONFIG.NET) || {};
+                    const snapDist = Number(netCfg.REMOTE_SNAP_DIST) || 180;
+                    if (dist > snapDist) {
+                        f.x = f._interpTarget.x;
+                        f.y = f._interpTarget.y;
+                    } else {
+                        const fast = Number(netCfg.REMOTE_LERP_FAST) || 0.5;
+                        const med = Number(netCfg.REMOTE_LERP_MEDIUM) || 0.34;
+                        const slow = Number(netCfg.REMOTE_LERP_SLOW) || 0.16;
+                        const t = dist > 120 ? fast : (dist > 30 ? med : slow);
+                        f.x += dx * t;
+                        f.y += dy * t;
+                    }
                 }
-                continue;
             }
+            return;
+        }
+
+        for (const f of this.fighters) {
             const opponents = this.fighters.filter(o => o !== f);
             f.update(delta, opponents, this._platforms, this._particles);
         }
@@ -836,6 +895,7 @@ class GameScene extends Phaser.Scene {
         }
 
         this._skillBoxes.push({
+            id: ++this._skillBoxIdCounter,
             ultimateId,
             x, y,
             vx: isBouncy ? (vxRange.min + Math.random() * (vxRange.max - vxRange.min)) : ((Math.random() - 0.5) * 1.2),
@@ -1290,6 +1350,7 @@ class GameScene extends Phaser.Scene {
                         sprite.setDisplaySize(size, size);
                     }
                     this._meteors.push({
+                        id: ++this._meteorIdCounter,
                         x: spawnX,
                         y: -40,
                         vx: (Math.random() - 0.5) * 3,
@@ -1552,7 +1613,8 @@ class GameScene extends Phaser.Scene {
 
             } else if (proj.type === 'kamehameha') {
                 // Energy beam — expanding from caster to current x
-                const startX = proj.fighter.x + proj.fighter.facing * 30;
+                const owner = proj.fighter;
+                const startX = owner ? (owner.x + owner.facing * 30) : (proj.x - Math.sign(proj.vx || 1) * 40);
                 const beamLen = Math.abs(proj.x - startX);
                 const bx = (startX + proj.x) / 2;
                 const by = proj.y;
@@ -1968,26 +2030,41 @@ class GameScene extends Phaser.Scene {
                 : 'KO! ' + f1._name + ' WINS!';
 
             if (mode === 'tournament' && this.tournament) {
-                const side = p1Won ? 0 : 1;
-                UI.showRoundResult(
-                    p1Won ? 'VICTORY!' : 'DEFEAT!', title,
-                    () => {
-                        this.tournament.recordWinner(side);
-                        if (this.tournament.isOver()) {
-                            this._onTournamentEnd();
-                        } else {
-                            // Return to MenuScene with tournament to show bracket
-                            this.scene.start('MenuScene', {
-                                tournament: this.tournament,
-                                showBracket: true,
-                            });
-                        }
-                    },
-                    () => {
-                        this.tournament = null;
-                        this._exitToMenu();
-                    }
-                );
+                if (p1Won) {
+                    UI.showRoundResult(
+                        'VICTORY!', title,
+                        () => {
+                            this.tournament.recordWinner(0);
+                            if (this.tournament.isOver()) {
+                                this._onTournamentEnd();
+                            } else {
+                                // Return to MenuScene with tournament to show bracket
+                                this.scene.start('MenuScene', {
+                                    tournament: this.tournament,
+                                    showBracket: true,
+                                });
+                            }
+                        },
+                        () => {
+                            this.tournament = null;
+                            this._exitToMenu();
+                        },
+                        { continueLabel: 'CONTINUE', menuLabel: 'MENU' }
+                    );
+                } else {
+                    UI.showRoundResult(
+                        'DEFEAT!', title,
+                        () => {
+                            // Let player retry the same floor without ending tournament.
+                            this._restartMatch();
+                        },
+                        () => {
+                            this.tournament = null;
+                            this._exitToMenu();
+                        },
+                        { continueLabel: 'REMATCH', menuLabel: 'MENU' }
+                    );
+                }
             } else {
                 const winnerF = p1Won ? f0 : f1;
                 const headline = this.online
@@ -2018,8 +2095,8 @@ class GameScene extends Phaser.Scene {
         );
     }
 
-    _showResult(title, subtitle, onContinue, onMenu) {
-        UI.showRoundResult(title, subtitle, onContinue, onMenu);
+    _showResult(title, subtitle, onContinue, onMenu, options = {}) {
+        UI.showRoundResult(title, subtitle, onContinue, onMenu, options);
     }
 
     _restartMatch() {
@@ -2028,9 +2105,21 @@ class GameScene extends Phaser.Scene {
             this.scene.start('MenuScene', { tournament: null, backToLobby: true });
             return;
         }
-        // Restart GameScene with the same mode (no tournament data needed for rematch)
+
+        if (this.mode === 'tournament' && this.tournament && this.tournamentMatch) {
+            // Retry current floor in tournament mode.
+            this.scene.start('GameScene', {
+                mode: 'tournament',
+                mapKey: this.mapKey,
+                tournament: this.tournament,
+                tournamentMatch: this.tournamentMatch,
+            });
+            return;
+        }
+
+        // Restart GameScene with the same mode
         this.scene.start('GameScene', {
-            mode: this.mode === 'tournament' ? '1vAI' : this.mode,
+            mode: this.mode,
             mapKey: this.mapKey,
             aiDifficulty: this.aiDifficulty,
             tournament: null,
@@ -2041,6 +2130,8 @@ class GameScene extends Phaser.Scene {
         if (this.online) Net.disconnect();
         UI.showScreen('menu');
         document.getElementById('overlay-pause').classList.add('hidden');
+        const guide = document.getElementById('pause-guide');
+        if (guide) guide.classList.add('hidden');
         this.scene.start('MenuScene', { tournament: null });
     }
 
@@ -2051,8 +2142,10 @@ class GameScene extends Phaser.Scene {
         if (this.matchOver || this.roundPaused) return;
         this.isPaused = !this.isPaused;
         const ov = document.getElementById('overlay-pause');
+        const guide = document.getElementById('pause-guide');
         if (this.isPaused) {
             ov.classList.remove('hidden');
+            if (guide) guide.classList.add('hidden');
             this.scene.pause();   // Pauses updates AND Phaser timers
         } else {
             this._resumeFromPause();
@@ -2062,7 +2155,24 @@ class GameScene extends Phaser.Scene {
     _resumeFromPause() {
         this.isPaused = false;
         document.getElementById('overlay-pause').classList.add('hidden');
+        const guide = document.getElementById('pause-guide');
+        if (guide) guide.classList.add('hidden');
         this.scene.resume();
+    }
+
+    _rematchFromPause() {
+        if (!this.isPaused) return;
+        this.isPaused = false;
+        document.getElementById('overlay-pause').classList.add('hidden');
+        this.scene.resume();
+        this._restartMatch();
+    }
+
+    _togglePauseGuide() {
+        if (!this.isPaused) return;
+        const guide = document.getElementById('pause-guide');
+        if (!guide) return;
+        guide.classList.toggle('hidden');
     }
 
     // =========================================================
@@ -2336,9 +2446,17 @@ class GameScene extends Phaser.Scene {
             };
         } else {
             // Client receives authoritative state from host
-            Net.onStateReceived = snapshots => {
-                this._latestSnapshot = snapshots;  // keep ref for potential debug
-                this._newSnapshot = snapshots;  // consumed once in update()
+            Net.onStateReceived = payload => {
+                const normalised = (payload && !Array.isArray(payload))
+                    ? payload
+                    : { fighters: payload || null, world: null };
+
+                const seq = Number(normalised.seq) || 0;
+                if (seq && seq <= this._lastRecvStateSeq) return;
+                if (seq) this._lastRecvStateSeq = seq;
+
+                this._latestSnapshot = normalised;  // keep ref for potential debug
+                this._newSnapshot = normalised;  // consumed once in update()
             };
             Net.onHostDisconnect = () => this._onOnlineDisconnect();
         }
@@ -2369,6 +2487,8 @@ class GameScene extends Phaser.Scene {
             fa: f.facing,
             st: f.state,
             atk: f.attackType,
+            at: Math.max(0, Math.round(f.atkTimer || 0)),
+            ad: Math.max(0, Math.round(f.atkDuration || 0)),
             dmg: Math.round(f.damage),
             stk: f.stocks,
             eng: Math.round(f.energy),
@@ -2401,7 +2521,7 @@ class GameScene extends Phaser.Scene {
                 if (threshold ? Math.abs(n[k] - p[k]) > threshold : n[k] !== p[k]) { d[k] = n[k]; changed = true; }
             };
             chk('x', 1); chk('y', 1); chk('vx', 0.1); chk('vy', 0.1);
-            chk('fa'); chk('st'); chk('atk'); chk('dmg'); chk('stk'); chk('eng');
+            chk('fa'); chk('st'); chk('atk'); chk('at'); chk('ad'); chk('dmg'); chk('stk'); chk('eng');
             // Timers: include when either side is non-zero (transition in or out)
             if (n.inv > 0 || p.inv > 0) { d.inv = n.inv; changed = true; }
             if (n.hrt > 0 || p.hrt > 0) { d.hrt = n.hrt; changed = true; }
@@ -2410,6 +2530,52 @@ class GameScene extends Phaser.Scene {
             if (changed) delta.push(d);
         }
         return delta.length > 0 ? delta : null; // null = nothing changed, no packet sent
+    }
+
+    _makeWorldSnapshot() {
+        return {
+            platforms: (this._platforms && this._platforms.platforms)
+                ? this._platforms.platforms
+                    .filter(p => p && p.id && (p.passThrough || p._phaseCycleMs))
+                    .map(p => ({
+                        id: p.id,
+                        x: +p.x.toFixed(2),
+                        y: +p.y.toFixed(2),
+                        pa: p._phaseActive === false ? 0 : 1,
+                        pal: Number.isFinite(p._phaseAlpha) ? +p._phaseAlpha.toFixed(3) : 1,
+                    }))
+                : [],
+            skillBoxes: this._skillBoxes.map(b => ({
+                id: b.id,
+                u: b.ultimateId,
+                x: +b.x.toFixed(2),
+                y: +b.y.toFixed(2),
+                t: +b.animTick.toFixed(3),
+                l: Math.max(0, Math.round(b.lifetime || 0)),
+            })),
+            projectiles: this._projectiles.map(p => ({
+                id: p.id,
+                tp: p.type,
+                o: p.fighter ? p.fighter._netPlayerId : null,
+                x: +p.x.toFixed(2),
+                y: +p.y.toFixed(2),
+                vx: +p.vx.toFixed(2),
+                w: p.w,
+                h: p.h,
+                tk: +p.tick.toFixed(2),
+            })),
+            meteors: this._meteors.map(m => ({
+                id: m.id,
+                o: m.fighter ? m.fighter._netPlayerId : null,
+                x: +m.x.toFixed(2),
+                y: +m.y.toFixed(2),
+                vx: +m.vx.toFixed(2),
+                vy: +m.vy.toFixed(2),
+                r: m.radius,
+                tk: +m.tick.toFixed(2),
+                ex: m.exploded ? 1 : 0,
+            })),
+        };
     }
 
     /** Apply a server snapshot (may be full or delta) to local fighter objects (client only). */
@@ -2432,6 +2598,11 @@ class GameScene extends Phaser.Scene {
                 if (snap.fa !== undefined) f.facing = snap.fa;
                 if (snap.st !== undefined) f.state = snap.st;
                 if (snap.atk !== undefined) f.attackType = snap.atk;
+                if (snap.ad !== undefined) f.atkDuration = snap.ad;
+                if (snap.at !== undefined) {
+                    f.atkTimer = snap.at;
+                    f.atkProgress = (f.atkDuration > 0) ? (1 - (f.atkTimer / f.atkDuration)) : 0;
+                }
                 if (snap.dmg !== undefined) f.damage = snap.dmg;
                 if (snap.stk !== undefined) f.stocks = snap.stk;
                 if (snap.eng !== undefined) f.energy = snap.eng;
@@ -2456,6 +2627,11 @@ class GameScene extends Phaser.Scene {
                 if (snap.fa !== undefined) f.facing = snap.fa;
                 if (snap.st !== undefined) f.state = snap.st;
                 if (snap.atk !== undefined) f.attackType = snap.atk;
+                if (snap.ad !== undefined) f.atkDuration = snap.ad;
+                if (snap.at !== undefined) {
+                    f.atkTimer = snap.at;
+                    f.atkProgress = (f.atkDuration > 0) ? (1 - (f.atkTimer / f.atkDuration)) : 0;
+                }
                 if (snap.dmg !== undefined) f.damage = snap.dmg;
                 if (snap.stk !== undefined) f.stocks = snap.stk;
                 if (snap.eng !== undefined) f.energy = snap.eng;
@@ -2469,17 +2645,178 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    /** Client: send local fighter's current input to host every frame.
-     *  Sending every frame (not just on change) ensures the host never misses
-     *  a transient button press that was held for less than one RTT, which is
-     *  the root cause of lost jumps and missing double-jumps on the host side.
-     */
-    _sendLocalInput() {
+    _applyWorldSnapshot(world) {
+        if (!world || Net.role !== 'client') return;
+
+        if (Array.isArray(world.platforms) && this._platforms && this._platforms.platforms) {
+            const byId = new Map(world.platforms.map(p => [p.id, p]));
+            for (const plat of this._platforms.platforms) {
+                if (!plat || !plat.id) continue;
+                const snap = byId.get(plat.id);
+                if (!snap) continue;
+
+                plat.x = snap.x;
+                plat.y = snap.y;
+                if (snap.pa !== undefined) plat._phaseActive = !!snap.pa;
+                if (snap.pal !== undefined) plat._phaseAlpha = snap.pal;
+
+                const img = this._platforms._platImages && this._platforms._platImages[plat.id];
+                if (img) {
+                    const visualX = plat.x + (plat._visualDx || 0);
+                    const visualY = plat.y + (plat._visualDy || 0);
+                    img.setPosition(visualX + (plat._visualW || plat.w) / 2, visualY);
+                    if (plat._phaseCycleMs) img.setAlpha(Number.isFinite(plat._phaseAlpha) ? plat._phaseAlpha : 1);
+                }
+            }
+        }
+
+        if (Array.isArray(world.skillBoxes)) this._syncRemoteSkillBoxes(world.skillBoxes);
+        if (Array.isArray(world.projectiles)) {
+            this._projectiles = world.projectiles.map(p => ({
+                id: p.id,
+                type: p.tp,
+                x: p.x,
+                y: p.y,
+                vx: p.vx,
+                w: p.w,
+                h: p.h,
+                tick: p.tk,
+                fighter: this.fighters.find(f => f._netPlayerId === p.o) || null,
+            }));
+        }
+        if (Array.isArray(world.meteors)) this._syncRemoteMeteors(world.meteors);
+    }
+
+    _syncRemoteSkillBoxes(serialized) {
+        const existing = new Map(this._skillBoxes.map(b => [b.id, b]));
+        const next = [];
+
+        for (const sb of serialized) {
+            let box = existing.get(sb.id);
+            if (!box) {
+                box = {
+                    id: sb.id,
+                    ultimateId: sb.u,
+                    x: sb.x,
+                    y: sb.y,
+                    vx: 0,
+                    vy: 0,
+                    gravity: 0,
+                    bouncy: false,
+                    animTick: sb.t || 0,
+                    lifetime: sb.l || 0,
+                    onGround: false,
+                    sprite: null,
+                };
+                const spriteKey = this._ultimateIconTextureKey(sb.u);
+                if (this.textures.exists(spriteKey)) {
+                    box.sprite = this.add.image(box.x, box.y, spriteKey).setDepth(2.65);
+                    box.sprite.setDisplaySize(26, 26);
+                }
+            }
+
+            box.ultimateId = sb.u;
+            box.x = sb.x;
+            box.y = sb.y;
+            box.animTick = sb.t || 0;
+            box.lifetime = sb.l || 0;
+            if (box.sprite) box.sprite.setPosition(box.x, box.y);
+            next.push(box);
+            existing.delete(sb.id);
+        }
+
+        for (const stale of existing.values()) this._destroySkillBoxVisual(stale);
+        this._skillBoxes = next;
+    }
+
+    _syncRemoteMeteors(serialized) {
+        const existing = new Map(this._meteors.map(m => [m.id, m]));
+        const next = [];
+        const meteorTex = this._meteorTextureKey();
+
+        for (const sm of serialized) {
+            let m = existing.get(sm.id);
+            if (!m) {
+                m = {
+                    id: sm.id,
+                    x: sm.x,
+                    y: sm.y,
+                    vx: sm.vx,
+                    vy: sm.vy,
+                    radius: sm.r,
+                    fighter: this.fighters.find(f => f._netPlayerId === sm.o) || null,
+                    def: null,
+                    opponents: [],
+                    particles: null,
+                    hitOpponents: new Set(),
+                    tick: sm.tk || 0,
+                    exploded: !!sm.ex,
+                    sprite: null,
+                };
+
+                if (this.textures.exists(meteorTex)) {
+                    const size = (m.radius || 55) * 1.8;
+                    m.sprite = this.add.image(m.x, m.y, meteorTex).setDepth(3.45);
+                    m.sprite.setDisplaySize(size, size);
+                }
+            }
+
+            m.x = sm.x;
+            m.y = sm.y;
+            m.vx = sm.vx;
+            m.vy = sm.vy;
+            m.radius = sm.r;
+            m.tick = sm.tk || 0;
+            m.exploded = !!sm.ex;
+            m.fighter = this.fighters.find(f => f._netPlayerId === sm.o) || m.fighter;
+
+            if (m.sprite) {
+                m.sprite.setPosition(m.x, m.y);
+                m.sprite.setVisible(!m.exploded);
+            }
+
+            next.push(m);
+            existing.delete(sm.id);
+        }
+
+        for (const stale of existing.values()) {
+            if (stale.sprite) {
+                stale.sprite.destroy();
+                stale.sprite = null;
+            }
+        }
+
+        this._meteors = next;
+    }
+
+    /** Client: send local input on fixed tick, with immediate edge/change flush. */
+    _sendLocalInput(delta) {
         const localF = this.fighters.find(f => f._isLocalNet);
         if (!localF) return;
-        // Reuse the input object already populated by _updateInput() this frame
-        // so the host sees exactly the state used for local-prediction physics.
-        Net.sendInput(localF.input);
+
+        const keys = ['left', 'right', 'up', 'down', 'light', 'heavy', 'dodge', 'drop'];
+        const nowInput = localF.input;
+
+        const edgeKeys = ['up', 'light', 'heavy', 'dodge', 'drop'];
+        const hasRisingEdge = edgeKeys.some(k => !!nowInput[k] && !localF._prevInput[k]);
+        const changed = !this._lastSentInput || keys.some(k => !!nowInput[k] !== !!this._lastSentInput[k]);
+
+        this._netInputAccum += delta;
+        const due = this._netInputAccum >= this._netInputInterval;
+        if (!due && !hasRisingEdge && !changed) return;
+
+        Net.sendInput(nowInput);
+        this._lastSentInput = {
+            left: !!nowInput.left,
+            right: !!nowInput.right,
+            up: !!nowInput.up,
+            down: !!nowInput.down,
+            light: !!nowInput.light,
+            heavy: !!nowInput.heavy,
+            dodge: !!nowInput.dodge,
+            drop: !!nowInput.drop,
+        };
+        this._netInputAccum = 0;
     }
 
     /** Called when host disconnects mid-game (client only). */

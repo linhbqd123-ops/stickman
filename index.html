@@ -33,20 +33,29 @@
                     <div class="hint-col">
                         <b>Player 1</b><br>
                         Move: <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>D</kbd><br>
-                        Light: <kbd>J</kbd> &nbsp; Heavy: <kbd>K</kbd><br>Dodge/Dash: <kbd>L</kbd><br>
-                        Drop Ultimate: <kbd>F</kbd><br>
-                        <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate: <kbd>J</kbd>+<kbd>K</kbd>
+                        Light: <kbd>J</kbd> &nbsp; Heavy: <kbd>K</kbd><br>
+                        Dodge/Dash: <kbd>L</kbd> &nbsp; Drop Skill: <kbd>F</kbd><br>
+                        Pause: <kbd>Esc</kbd><br>
+                        <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate Combo: <kbd>J</kbd>+<kbd>K</kbd>
                             (Energy full)</span>
                     </div>
                     <div class="hint-divider"></div>
                     <div class="hint-col">
                         <b>Player 2</b><br>
                         Move: <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><br>
-                        Light: <kbd>Num1</kbd> &nbsp; Heavy: <kbd>Num2</kbd><br>Dodge/Dash: <kbd>Num3</kbd><br>
-                        Drop Ultimate: <kbd>Num0</kbd><br>
-                        <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate:
+                        Light: <kbd>Num1</kbd> &nbsp; Heavy: <kbd>Num2</kbd><br>
+                        Dodge/Dash: <kbd>Num3</kbd> &nbsp; Drop Skill: <kbd>Num0</kbd><br>
+                        Pause: <kbd>Esc</kbd><br>
+                        <span style="color:rgba(255,215,0,0.7);font-size:0.72rem;">⚡ Ultimate Combo:
                             <kbd>Num1</kbd>+<kbd>Num2</kbd> (Energy full)</span>
                     </div>
+                </div>
+                <div class="controls-mechanics">
+                    <h4>Game Mechanic:</h4> 
+                    <b>Higher your damage %, the farther you get knocked back.</b><br>
+                    <b>Each player has 3 stocks—once you run out, you lose.</b><br>
+                    <b>During the match, skill boxes will randomly spawn. Picking one up grants you an Ultimate, and you can drop it to avoid being KO’d.</b><br>
+                    <b>Dodge at the right time to outplay your opponent and save your stocks!</b>
                 </div>
             </div>
         </div>
@@ -126,7 +135,8 @@
                 <h2 class="section-title">SELECT MODE</h2>
                 <nav class="menu-nav">
                     <button class="menu-btn" data-action="1v1-pvp">👥 1v1 — 2 PLAYERS</button>
-                    <div class="ai-diff-block">
+                    <button class="menu-btn" data-action="1v1-ai">🤖 1v1 — VS AI</button>
+                    <div class="ai-diff-block hidden" id="ai-diff-block">
                         <div class="ai-diff-title">🤖 1v1 — VS AI</div>
                         <div class="ai-diff-row">
                             <button class="menu-btn ai-diff-btn easy" data-action="1v1-ai-easy"
@@ -307,7 +317,29 @@
                 <div class="overlay-btns" style="flex-direction: column; width: 100%;">
                     <button class="menu-btn primary" id="btn-resume"
                         style="width: 100%; margin-bottom: 8px;">RESUME</button>
+                    <button class="menu-btn" id="btn-rematch" style="width: 100%; margin-bottom: 8px;">REMATCH</button>
+                    <button class="menu-btn" id="btn-guide-toggle" style="width: 100%; margin-bottom: 8px;">GUIDE</button>
                     <button class="menu-btn secondary" id="btn-exit-match" style="width: 100%;">EXIT MATCH</button>
+                </div>
+                <div id="pause-guide" class="pause-guide hidden">
+                    <h3>KEY CONTROL & COMBO</h3>
+                    <div class="pause-guide-grid">
+                        <div>
+                            <b>Player 1</b><br>
+                            Move: A W S D<br>
+                            Light/Heavy: J / K<br>
+                            Dodge: L - Drop Skill: F<br>
+                            Ultimate: J + K (Energy full)
+                        </div>
+                        <div>
+                            <b>Player 2</b><br>
+                            Move: Arrow keys<br>
+                            Light/Heavy: Num1 / Num2<br>
+                            Dodge: Num3 - Drop Skill: Num0<br>
+                            Ultimate: Num1 + Num2 (Energy full)
+                        </div>
+                    </div>
+                    <p>Damage % cang cao thi knockback cang manh. Dodge dung luc de outplay va giu stocks.</p>
                 </div>
             </div>
         </div>

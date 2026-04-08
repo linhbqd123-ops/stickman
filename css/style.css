@@ -82,8 +82,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 28px;
-    max-width: 560px;
+    gap: 30px;
+    max-width: 620px;
     width: 90%;
     text-align: center;
     animation: fadeSlideUp 0.45s ease both;
@@ -212,7 +212,7 @@ body {
 .menu-btn {
     display: block;
     width: 100%;
-    padding: 15px 24px;
+    padding: 16px 28px;
     font-family: var(--font-main);
     font-size: 1rem;
     font-weight: 700;
@@ -297,10 +297,48 @@ body {
     width: 100%;
     margin-top: 4px;
 }
+/* Controls hint: keep key groups on one line when there's space, allow horizontal scroll on small screens */
+.controls-hint{
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    flex-wrap: nowrap; /* prefer single-line */
+    overflow-x: auto; /* allow scrolling when too narrow */
+    -webkit-overflow-scrolling: touch;
+}
+.controls-hint .hint-col{
+    min-width: 260px; /* give each column enough room */
+    white-space: nowrap; /* prevent inner wrapping */
+}
+.controls-hint .hint-col br{ /* allow explicit breaks inside small screens */
+    display: inline-block;
+}
+
+@media (max-width: 720px){
+    .controls-hint{ flex-wrap: nowrap; gap:10px; }
+    .controls-hint .hint-col{ min-width: 220px; }
+}
+
+.controls-mechanics {
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--r);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--c-muted);
+    font-size: 0.73rem;
+    line-height: 1.65;
+    text-align: left;
+}
+
+.controls-mechanics b {
+    color: var(--c-text);
+}
 
 .hint-col {
     flex: 1;
-    padding: 0 20px;
+    padding: 0 24px;
     font-size: 0.78rem;
     line-height: 1.8;
     color: var(--c-muted);
@@ -341,7 +379,7 @@ kbd {
     background: rgba(0, 229, 255, 0.04);
     border: 1px solid var(--c-border);
     border-radius: var(--r);
-    padding: 24px 32px;
+    padding: 28px 36px;
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -387,6 +425,9 @@ kbd {
    ============================================================ */
 #screen-bracket {
     background: var(--c-bg);
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-y: auto;
 }
 
 .bracket-wrap {
@@ -394,9 +435,11 @@ kbd {
     flex-direction: column;
     align-items: center;
     gap: 28px;
-    padding: 24px;
+    padding: 20px 24px 28px;
+    min-height: 100vh;
     width: 100%;
     max-width: 1100px;
+    margin: 0 auto;
     animation: fadeSlideUp 0.4s ease both;
 }
 
@@ -870,6 +913,10 @@ kbd {
     display: none;
 }
 
+.hidden {
+    display: none !important;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -928,6 +975,39 @@ kbd {
 .overlay-btns .menu-btn {
     width: auto;
     min-width: 140px;
+}
+
+.pause-guide {
+    width: 100%;
+    margin-top: 6px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.28);
+    text-align: left;
+}
+
+.pause-guide h3 {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    color: var(--c-glow);
+    margin-bottom: 8px;
+}
+
+.pause-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: rgba(220, 235, 255, 0.8);
+}
+
+.pause-guide p {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: var(--c-muted);
+    letter-spacing: 0.02em;
 }
 
 /* Champion overlay */
@@ -1012,9 +1092,17 @@ kbd {
         flex-direction: column;
     }
 
+    .controls-mechanics {
+        font-size: 0.7rem;
+    }
+
     .hint-divider {
         width: 100%;
         height: 1px;
+    }
+
+    .pause-guide-grid {
+        grid-template-columns: 1fr;
     }
 
     .overlay-box {

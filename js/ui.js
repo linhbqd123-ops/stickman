@@ -79,7 +79,7 @@ const UI = (() => {
     }
 
     // ---- Round result overlay ----
-    function showRoundResult(title, subtitle, onContinue, onMenu) {
+    function showRoundResult(title, subtitle, onContinue, onMenu, options = {}) {
         const ov = $('overlay-result');
         if (!ov) return;
         $('result-title').textContent = title;
@@ -92,6 +92,11 @@ const UI = (() => {
         const newMenu = menu.cloneNode(true);
         cont.replaceWith(newCont);
         menu.replaceWith(newMenu);
+
+        const continueLabel = options.continueLabel || 'REMATCH';
+        const menuLabel = options.menuLabel || 'MENU';
+        $('btn-continue').textContent = continueLabel;
+        $('btn-to-menu').textContent = menuLabel;
 
         $('btn-continue').addEventListener('click', () => {
             ov.classList.add('hidden');

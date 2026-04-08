@@ -26,6 +26,7 @@ class MenuScene extends Phaser.Scene {
         // Clone trick: replace node with its clone to strip old listeners.
         this._rewireMenuButtons();
         this._setAiDifficulty(this._selectedAiDifficulty);
+        this._showAiDifficulty(false);
 
         // Wire one-time bracket buttons
         this._rewireBtn('btn-bracket-start', () => this._beginCurrentTournamentMatch());
@@ -53,6 +54,8 @@ class MenuScene extends Phaser.Scene {
         // Wire pause overlay buttons (to be used by GameScene via events).
         // MenuScene registers them once; GameScene emits events.
         this._rewireBtn('btn-resume', () => this.game.events.emit('game:resume'));
+        this._rewireBtn('btn-rematch', () => this.game.events.emit('game:rematch'));
+        this._rewireBtn('btn-guide-toggle', () => this.game.events.emit('game:toggle-guide'));
         this._rewireBtn('btn-exit-match', () => this.game.events.emit('game:exit'));
 
         // Tournament win overlay
@@ -150,11 +153,20 @@ class MenuScene extends Phaser.Scene {
     // ─────────────────────────────────────────────────────────
     _handleMenuAction(action) {
         switch (action) {
-            case 'play-menu': UI.showScreen('mode-select'); break;
-            case 'back-menu': UI.showScreen('menu'); break;
-            case 'back-map-select': UI.showScreen('mode-select'); break;
+            case 'play-menu':
+                UI.showScreen('mode-select');
+                this._showAiDifficulty(false);
+                break;
+            case 'back-menu':
+                UI.showScreen('menu');
+                this._showAiDifficulty(false);
+                break;
+            case 'back-map-select':
+                UI.showScreen('mode-select');
+                this._showAiDifficulty(false);
+                break;
             case '1v1-pvp': this._showMapSelect('1v1'); break;
-            case '1v1-ai': this._setAiDifficulty('medium'); this._showMapSelect('1vAI', 'medium'); break;
+            case '1v1-ai': this._showAiDifficulty(); break;
             case '1v1-ai-easy': this._setAiDifficulty('easy'); this._showMapSelect('1vAI', 'easy'); break;
             case '1v1-ai-medium': this._setAiDifficulty('medium'); this._showMapSelect('1vAI', 'medium'); break;
             case '1v1-ai-hard': this._setAiDifficulty('hard'); this._showMapSelect('1vAI', 'hard'); break;
@@ -174,6 +186,7 @@ class MenuScene extends Phaser.Scene {
     //  Map Selection
     // ────────────────────────────────────────────────────────────
     _showMapSelect(mode, aiDifficulty = null) {
+        this._showAiDifficulty(false);
         this._pendingMode = mode;
         if (mode === '1vAI') {
             this._pendingAiDifficulty = aiDifficulty || this._selectedAiDifficulty || 'medium';
@@ -209,6 +222,18 @@ class MenuScene extends Phaser.Scene {
         document.querySelectorAll('.ai-diff-btn').forEach(btn => {
             btn.classList.toggle('selected', btn.dataset.diff === next);
         });
+    }
+
+    _showAiDifficulty(force) {
+        const panel = document.getElementById('ai-diff-block');
+        if (!panel) return;
+
+        if (typeof force === 'boolean') {
+            panel.classList.toggle('hidden', !force);
+            return;
+        }
+
+        panel.classList.toggle('hidden');
     }
 
     // ─────────────────────────────────────────────────────────
