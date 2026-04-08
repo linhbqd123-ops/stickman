@@ -24,6 +24,12 @@ class PhaserParticleSystem {
             const spread = (Math.random() - 0.5) * Math.PI;
             const angle = (dirX > 0 ? 0 : Math.PI) + spread - Math.PI * 0.4;
             const speed = Math.random() * C.BLOOD_SPEED + 1.5;
+            const hue = Math.random() * 20;
+            const light = 35 + (Math.random() * 20 | 0);
+            const lf = light / 100;
+            const rC = Math.round(lf * 180 + hue * 2);
+            const gC = Math.round(lf * 20);
+            const bC = Math.round(lf * 20);
             this.list.push({
                 x, y,
                 vx: Math.cos(angle) * speed,
@@ -31,8 +37,8 @@ class PhaserParticleSystem {
                 life: C.BLOOD_LIFE + (Math.random() * 10 | 0),
                 maxLife: C.BLOOD_LIFE,
                 r: Math.random() * 3.5 + 1.5,
-                hue: Math.random() * 20,
-                light: 35 + (Math.random() * 20 | 0),
+                hue, light,
+                baseColor: ((rC & 0xff) << 16) | ((gC & 0xff) << 8) | (bC & 0xff),
                 type: 'blood',
             });
         }
@@ -152,8 +158,10 @@ class PhaserParticleSystem {
 
     // ---- Update (called each frame with delta) ----
     update(delta) {
-        for (let i = this.list.length - 1; i >= 0; i--) {
-            const p = this.list[i];
+        const list = this.list;
+        let w = 0;
+        for (let i = 0, len = list.length; i < len; i++) {
+            const p = list[i];
             if (p.type !== 'shockwave') {
                 p.x += p.vx;
                 p.y += p.vy;
@@ -161,8 +169,9 @@ class PhaserParticleSystem {
                 p.vx *= 0.97;
             }
             p.life--;
-            if (p.life <= 0) this.list.splice(i, 1);
+            if (p.life > 0) list[w++] = p;
         }
+        list.length = w;
     }
 
     // ---- Draw (called each frame, g is Phaser.GameObjects.Graphics) ----
@@ -183,13 +192,7 @@ class PhaserParticleSystem {
                 const a = alpha * alpha;   // quadratic fade
 
                 if (p.type === 'blood') {
-                    // hsl-like: red/dark-red
-                    const lf = p.light / 100;
-                    const r = Math.round(lf * 180 + p.hue * 2);
-                    const gr = Math.round(lf * 20);
-                    const b = Math.round(lf * 20);
-                    const color = ((r & 0xff) << 16) | ((gr & 0xff) << 8) | (b & 0xff);
-                    g.fillStyle(color, a);
+                    g.fillStyle(p.baseColor, a);
                     g.fillCircle(p.x, p.y, p.r);
 
                 } else if (p.type === 'spark') {

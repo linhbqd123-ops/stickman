@@ -81,6 +81,11 @@ class Fighter {
         this._lastAttackTime = 0;
         this._comboCount = 0;
 
+        // ---- Per-fighter stat multipliers (hard / boss bot boosts) ----
+        this.speedMult = Number.isFinite(opts.speedMult) ? opts.speedMult : 1.0;
+        this.jumpMult = Number.isFinite(opts.jumpMult) ? opts.jumpMult : 1.0;
+        this.damageMult = Number.isFinite(opts.damageMult) ? opts.damageMult : 1.0;
+
         // ---- Air state tracking ----
         this.maxAirJumps = Number.isFinite(opts.maxAirJumps) ? Math.max(0, Math.floor(opts.maxAirJumps)) : 1;
         this._airJumpsUsed = 0;   // consumed in-air jumps (reset on land)
@@ -104,6 +109,7 @@ class Fighter {
         // Passing !facingRight used to invert slot-1's render, making it face the wrong way.
         this.renderer = new Stickman(opts.color, opts.shadow, false);
         this.color = opts.color;
+        this.colorInt = parseInt((opts.color || '#ffffff').replace('#', ''), 16);
         this.shadow = opts.shadow;
         this.tick = 0;
     }
@@ -246,10 +252,9 @@ class Fighter {
                 else if (this.wallDir === 1 && movingLeft) kickDir = -1;
 
                 if (kickDir !== 0) {
-                    console.log('Wall jump!');
                     // Wall jump ra ngoài
-                    this.vy = C.JUMP_FORCE * 0.92;
-                    this.vx = kickDir * C.WALL_JUMP_VX;
+                    this.vy = C.JUMP_FORCE * this.jumpMult * 0.92;
+                    this.vx = kickDir * C.WALL_JUMP_VX * this.speedMult;
                     this.facing = kickDir;
                     this.state = 'airborne';
                     this._wallJumpCooldown = C.WALL_JUMP_COOLDOWN;
@@ -263,7 +268,7 @@ class Fighter {
                     return; // QUAN TRỌNG: thoát ngay, không cho code bám tường chạy
                 } else {
                     // Nhảy thẳng lên nếu không giữ hướng ra ngoài
-                    this.vy = C.JUMP_FORCE;
+                    this.vy = C.JUMP_FORCE * this.jumpMult;
                     this.vx = 0;
                     this.state = 'airborne';
                     this._airJumpsUsed = 0;
@@ -328,20 +333,22 @@ class Fighter {
             this._wallGrabTick = 0;
         }
 
+        const _spd = C.MOVE_SPEED * this.speedMult;
+        const _airMove = C.AIR_MOVE * this.speedMult;
         if (this.onGround) {
             if (inp.left && !inp.right) {
-                this.vx = -C.MOVE_SPEED; this.facing = -1; moving = true;
+                this.vx = -_spd; this.facing = -1; moving = true;
             } else if (inp.right && !inp.left) {
-                this.vx = C.MOVE_SPEED; this.facing = 1; moving = true;
+                this.vx = _spd; this.facing = 1; moving = true;
             }
         } else {
             if (inp.left && !inp.right) {
-                this.vx -= C.AIR_MOVE;
-                this.vx = Math.max(this.vx, -C.MOVE_SPEED);
+                this.vx -= _airMove;
+                this.vx = Math.max(this.vx, -_spd);
                 this.facing = -1; moving = true;
             } else if (inp.right && !inp.left) {
-                this.vx += C.AIR_MOVE;
-                this.vx = Math.min(this.vx, C.MOVE_SPEED);
+                this.vx += _airMove;
+                this.vx = Math.min(this.vx, _spd);
                 this.facing = 1; moving = true;
             }
         }
@@ -355,13 +362,13 @@ class Fighter {
         }
 
         if (upTrig && this.onGround) {
-            this.vy = C.JUMP_FORCE;
+            this.vy = C.JUMP_FORCE * this.jumpMult;
             this.onGround = false;
             Audio.playJump();
         } else if (upTrig && !this.onGround && this._airJumpsUsed < this.maxAirJumps) {
             // Additional in-air jumps become slightly weaker each time.
             const weakenStep = Math.min(0.18, this._airJumpsUsed * 0.06);
-            this.vy = Math.round(C.JUMP_FORCE * (0.85 - weakenStep));
+            this.vy = Math.round(C.JUMP_FORCE * this.jumpMult * (0.85 - weakenStep));
             this._airJumpsUsed++;
             Audio.playJump && Audio.playJump();
         }
@@ -500,7 +507,7 @@ class Fighter {
         this.dashMomentumDir = this.facing;
         this.dashCooldown = C.DASH_COOLDOWN;
         this.atkCooldown = C.DASH_DURATION + 50;
-        this.vx = this.facing * C.DASH_SPEED;
+        this.vx = this.facing * C.DASH_SPEED * this.speedMult;
         Audio.playDash && Audio.playDash();
     }
 
@@ -750,7 +757,7 @@ class Fighter {
         opp.vx = kbx;
         opp.vy = kby;
         opp.onGround = false;
-        opp.damage = (opp.damage || 0) + (atk.dmg || 5);
+        opp.damage = (opp.damage || 0) + Math.round((atk.dmg || 5) * (this.damageMult || 1));
         opp.hurtTimer = C.HURT_DURATION;
         opp.invTimer = isCombo ? 60 : 120;
 

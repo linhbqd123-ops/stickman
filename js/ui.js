@@ -8,6 +8,9 @@ const UI = (() => {
 
     const $ = id => document.getElementById(id);
 
+    // ---- HUD change-detection cache (avoids redundant DOM writes at 60 fps) ----
+    const _hud = { damage: [], stocks: [], energy: [], ultimate: [] };
+
     // ---- Screen map ----
     const SCREENS = ['menu', 'mode-select', 'map-select', 'tournament-setup', 'bracket', 'game',
         'online-menu', 'online-lobby'];
@@ -43,9 +46,10 @@ const UI = (() => {
 
     /** Update damage % display (Brawlhalla-style) */
     function updateDamage(fighters) {
-        // fighters = array of Fighter objects
         fighters.forEach((f, i) => {
             const pct = Math.round(f.damage);
+            if (_hud.damage[i] === pct) return;
+            _hud.damage[i] = pct;
             const bar = $(`p${i + 1}-dmg`);
             if (bar) {
                 bar.textContent = pct + '%';
@@ -58,6 +62,8 @@ const UI = (() => {
     /** Render stock icons (hearts/skulls) */
     function updateStocks(fighters) {
         fighters.forEach((f, i) => {
+            if (_hud.stocks[i] === f.stocks) return;
+            _hud.stocks[i] = f.stocks;
             const container = $(`p${i + 1}-stocks`);
             if (!container) return;
             container.innerHTML = '';
@@ -114,11 +120,25 @@ const UI = (() => {
     }
 
     // ---- Tournament win overlay ----
-    function showTournamentWin(msg, onMenu) {
+    function showTournamentWin(msg, onMenu, options = {}) {
         const ov = $('overlay-tournament-win');
+        const box = ov ? ov.querySelector('.overlay-box') : null;
         const msgEl = $('tournament-win-msg');
         if (!ov) return;
-        if (msgEl) msgEl.textContent = msg;
+
+        // Customise for Reward
+        const titleEl = ov.querySelector('h1');
+        const iconEl = ov.querySelector('.trophy-icon');
+        
+        if (titleEl) titleEl.textContent = options.title || 'CHAMPION!';
+        if (iconEl) iconEl.textContent = options.isCup ? '🏆' : '🏅';
+        if (msgEl) msgEl.innerHTML = `${msg}<br><br><span style="color:${options.rewardColor || '#fff'}; font-weight:bold; font-size:1.4rem;">${options.rewardName || ''}</span><br><small style="opacity:0.8">${options.rewardDesc || ''}</small>`;
+        
+        if (box) {
+            box.style.borderColor = options.rewardColor || '#ffd700';
+            box.style.boxShadow = `0 0 50px ${options.rewardColor}40`;
+        }
+
         ov.classList.remove('hidden');
         const btn = $('btn-trophy-menu');
         if (btn) btn.onclick = () => { ov.classList.add('hidden'); onMenu && onMenu(); };
@@ -126,6 +146,11 @@ const UI = (() => {
 
     // ---- Fight start flash ----
     function flashFightStart(text, duration = 900, onDone) {
+        // Reset HUD cache so the new match's initial values are always written to DOM.
+        _hud.damage.length = 0;
+        _hud.stocks.length = 0;
+        _hud.energy.length = 0;
+        _hud.ultimate.length = 0;
         const ov = $('overlay-fight-start');
         const span = $('fight-start-text');
         if (!ov || !span) { onDone && onDone(); return; }
@@ -135,6 +160,29 @@ const UI = (() => {
         span.style.animation = '';
         ov.classList.remove('hidden');
         setTimeout(() => { ov.classList.add('hidden'); onDone && onDone(); }, duration);
+    }
+
+    // ---- Pause menu help ----
+    function setupGuide() {
+        const overlay = $('overlay-guide');
+        const openBtns = [$('btn-guide-toggle'), $('btn-guide-menu')]; 
+        const closeBtn = $('btn-close-guide');
+
+        if (!overlay || !closeBtn) return;
+
+        openBtns.forEach(btn => {
+            if (btn) btn.onclick = (e) => {
+                e.stopPropagation();
+                overlay.classList.remove('hidden');
+            };
+        });
+
+        closeBtn.onclick = () => overlay.classList.add('hidden');
+        
+        // Close on background click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) overlay.classList.add('hidden');
+        };
     }
 
     // ---- Menu button wiring ----
@@ -199,17 +247,24 @@ const UI = (() => {
     /** Update energy bar display for both fighters */
     function updateEnergy(fighters) {
         fighters.forEach((f, i) => {
-            const fill = $(`p${i + 1}-energy`);
-            if (!fill) return;
             const pct = Math.round((f.energy / CONFIG.ENERGY.MAX) * 100);
-            fill.style.width = pct + '%';
-            fill.classList.toggle('full', f.energy >= CONFIG.ENERGY.MAX);
+            if (_hud.energy[i] !== pct) {
+                _hud.energy[i] = pct;
+                const fill = $(`p${i + 1}-energy`);
+                if (fill) {
+                    fill.style.width = pct + '%';
+                    fill.classList.toggle('full', f.energy >= CONFIG.ENERGY.MAX);
+                }
+            }
+
+            const ultimateId = f.collectedUltimate;
+            if (_hud.ultimate[i] === ultimateId) return;
+            _hud.ultimate[i] = ultimateId;
 
             // Show V2 ultimate name badge + icon (icon is outside badge now)
             const badge = $(`p${i + 1}-ultimate-badge`);
             const iconEl = $(`p${i + 1}-ultimate-icon`);
             if (badge) {
-                const ultimateId = f.collectedUltimate;
                 if (ultimateId) {
                     const def = CONFIG.ULTIMATE_SKILLS && CONFIG.ULTIMATE_SKILLS[ultimateId];
                     const label = def ? def.name.toUpperCase() : ultimateId.toUpperCase();

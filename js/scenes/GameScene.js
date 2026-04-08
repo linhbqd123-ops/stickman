@@ -424,6 +424,18 @@ class GameScene extends Phaser.Scene {
             return f;
         };
 
+        // Apply stat multipliers from a difficulty preset to a non-player fighter
+        const applyPresetStats = (fighter, presetKey) => {
+            if (!fighter || fighter.isPlayer) return;
+            const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
+            const p = presets[presetKey];
+            if (!p) return;
+            if (Number.isFinite(p.speedMult))  fighter.speedMult  = p.speedMult;
+            if (Number.isFinite(p.jumpMult))   fighter.jumpMult   = p.jumpMult;
+            if (Number.isFinite(p.damageMult)) fighter.damageMult = p.damageMult;
+            if (Number.isFinite(p.airJumps))   fighter.maxAirJumps = Math.max(0, p.airJumps);
+        };
+
         const applyTournamentMeta = (fighter, meta) => {
             if (!fighter || !meta) return;
             if (Number.isFinite(meta.stocks)) {
@@ -481,6 +493,7 @@ class GameScene extends Phaser.Scene {
             const f0 = make(0, _sp.left1, true, true, C.KEYS_P1, PRESETS[0], 0);
             const f1 = make(1, _sp.right1, false, false, C.KEYS_P2, PRESETS[1], 1, aiDiff);
             f1.maxAirJumps = Number.isFinite(preset.airJumps) ? Math.max(0, preset.airJumps) : 1;
+            applyPresetStats(f1, this.aiDifficulty);
             f1._difficultyName = preset.label || this.aiDifficulty.toUpperCase();
             f0._name = 'PLAYER 1'; f1._name = 'CPU';
             this.fighters.push(f0, f1);
@@ -505,6 +518,9 @@ class GameScene extends Phaser.Scene {
                 { color: p2.color, shadow: p2.shadow }, 1, p2.difficulty);
             applyTournamentMeta(f0, p1);
             applyTournamentMeta(f1, p2);
+            // Apply stat multipliers for hard/boss AI opponents
+            if (!p1.isPlayer && p1.aiLevel) applyPresetStats(f0, p1.aiLevel);
+            if (!p2.isPlayer && p2.aiLevel) applyPresetStats(f1, p2.aiLevel);
             f0._name = p1.name; f1._name = p2.name;
             this.fighters.push(f0, f1);
             if (!p1.isPlayer) this.bots.push({ fighter: f0, bot: new Bot(f0, p1.difficulty || 0.5, { scene: this, level: p1.aiLevel }) });
@@ -576,17 +592,6 @@ class GameScene extends Phaser.Scene {
             const cooldown = Number.isFinite(rule.cooldown) ? rule.cooldown : defaultCooldown;
             f.ultimateCooldown = Math.max(0, cooldown || 0);
             appliedCount++;
-        }
-
-        if (appliedCount && dbg.logToConsole) {
-            console.info('[ULTIMATE_DEBUG] Applied start preset', {
-                fighters: appliedCount,
-                defaultUltimate,
-                defaultEnergy,
-                defaultCooldown,
-                onlyPlayers,
-                targetIds: dbg.targetIds,
-            });
         }
 
         if (window.UI && UI.updateEnergy) UI.updateEnergy(this.fighters);
@@ -807,7 +812,8 @@ class GameScene extends Phaser.Scene {
         const y = plat.y - CONFIG.SKILL_RADIUS - 6;
         const keys = Object.keys(CONFIG.SKILLS);
         const skillKey = keys[Math.floor(Math.random() * keys.length)];
-        this._skillItems.push({ x, y, skillKey, lifetime: CONFIG.SKILL_LIFETIME, animTick: 0 });
+        const colorInt = parseInt((CONFIG.SKILLS[skillKey].color || '#ffffff').replace('#', ''), 16);
+        this._skillItems.push({ x, y, skillKey, colorInt, lifetime: CONFIG.SKILL_LIFETIME, animTick: 0 });
     }
 
     _updateSkillItems(dt) {
@@ -833,8 +839,7 @@ class GameScene extends Phaser.Scene {
     _renderSkillItems() {
         const g = this._skillGfx;
         for (const item of this._skillItems) {
-            const s = CONFIG.SKILLS[item.skillKey];
-            const sc = parseInt(s.color.replace('#', ''), 16);
+            const sc = item.colorInt;
             const R = CONFIG.SKILL_RADIUS;
             const fadeFrac = Math.min(1, item.lifetime / 3000);  // fade in last 3 s
             const pulse = 0.55 + Math.sin(item.animTick * 3.5) * 0.45;
@@ -903,7 +908,8 @@ class GameScene extends Phaser.Scene {
     }
 
     _spawnRandomSkillBox(options = {}) {
-        const { excludeSaitama = false } = options;
+        const noSaitamaMap = !!(this._mapDef && this._mapDef.noSaitama);
+        const { excludeSaitama = noSaitamaMap } = options;
         if (this.matchOver) return;
         const D = CONFIG.SKILL_DROP;
         if (this._skillBoxes.length >= (D.maxActiveOnMap || 3)) return;
@@ -914,6 +920,9 @@ class GameScene extends Phaser.Scene {
     }
 
     _forceSpawnSaitamaBox() {
+        // Suppressed on maps that forbid Saitama
+        if (this._mapDef && this._mapDef.noSaitama) return;
+
         const hasOnMap = this._skillBoxes.some(b => b.ultimateId === 'saitama');
         const hasHolder = this.fighters.some(f => f.collectedUltimate === 'saitama');
         if (hasOnMap || hasHolder) return;
@@ -973,11 +982,12 @@ class GameScene extends Phaser.Scene {
             vy: isBouncy ? (vyRange.min + Math.random() * (vyRange.max - vyRange.min)) : -2,
             gravity: isBouncy ? (def.bounceGravity || D.dropGravity) : D.dropGravity,
             bouncy: isBouncy,
+            colorInt: parseInt((def.color || '#ffffff').replace('#', ''), 16),
             animTick: 0,
             lifetime: D.maxLifetime,
             onGround: false,
             sprite,
-        });
+        }); 
     }
 
     _dropUltimateFromFighter(fighter) {
@@ -1085,9 +1095,8 @@ class GameScene extends Phaser.Scene {
     _renderSkillBoxes() {
         const g = this._skillBoxGfx;
         for (const box of this._skillBoxes) {
-            const def = CONFIG.ULTIMATE_SKILLS[box.ultimateId];
-            if (!def) continue;
-            const color = parseInt(def.color.replace('#', ''), 16);
+            if (!CONFIG.ULTIMATE_SKILLS[box.ultimateId]) continue;
+            const color = box.colorInt;
             const R = CONFIG.SKILL_DROP.skillBoxSize / 2;
             const pulse = 0.55 + Math.sin(box.animTick * 4) * 0.45;
             const bob = Math.sin(box.animTick * 2.5) * 3;
@@ -1986,7 +1995,7 @@ class GameScene extends Phaser.Scene {
         // Fighter hitboxes (circle = rough body, different for attack/idle)
         for (const f of this.fighters) {
             if (f.state === 'dead') continue;
-            const fc = parseInt(f.color.replace('#', ''), 16);
+            const fc = f.colorInt;
 
             // Body bounding box
             g.lineStyle(1, fc, 0.6);
@@ -2137,8 +2146,9 @@ class GameScene extends Phaser.Scene {
 
             if (mode === 'tournament' && this.tournament) {
                 if (p1Won) {
+                    const nextRank = this.tournament.getCurrentRank();
                     UI.showRoundResult(
-                        'VICTORY!', title,
+                        'VICTORY!', `Rank up to ${nextRank.name}!`,
                         () => {
                             this.tournament.recordWinner(0);
                             if (this.tournament.isOver()) {
@@ -2155,21 +2165,11 @@ class GameScene extends Phaser.Scene {
                             this.tournament = null;
                             this._exitToMenu();
                         },
-                        { continueLabel: 'CONTINUE', menuLabel: 'MENU' }
+                        { continueLabel: 'CONTINUE', menuLabel: 'QUIT' }
                     );
                 } else {
-                    UI.showRoundResult(
-                        'DEFEAT!', title,
-                        () => {
-                            // Let player retry the same floor without ending tournament.
-                            this._restartMatch();
-                        },
-                        () => {
-                            this.tournament = null;
-                            this._exitToMenu();
-                        },
-                        { continueLabel: 'REMATCH', menuLabel: 'MENU' }
-                    );
+                    this.tournament.recordWinner(1);
+                    this._onTournamentEnd();
                 }
             } else {
                 const winnerF = p1Won ? f0 : f1;
@@ -2188,17 +2188,29 @@ class GameScene extends Phaser.Scene {
     _onTournamentEnd() {
         const champ = this.tournament.champion();
         const playerWon = !!(champ && champ.isPlayer);
-        const failRound = this.tournament && this.tournament.failedAt ? this.tournament.failedAt : 0;
-        const msg = playerWon
-            ? 'You conquered the tower!'
-            : `Tower failed at floor ${failRound || '?'} - ${champ ? champ.name : 'Rival'} wins.`;
-        UI.showTournamentWin(
-            msg,
-            () => {
-                this.tournament = null;
-                this._exitToMenu();
-            }
-        );
+        const reward = this.tournament.getReward();
+        
+        let title = playerWon ? 'CHAMPION!' : 'LEVEL FAILED';
+        let msg = playerWon ? 'You conquered the tower!' : `Tournament ended at floor ${this.tournament.clearedCount + 1}.`;
+        
+        if (reward) {
+            UI.showTournamentWin(
+                msg,
+                () => {
+                    this.tournament = null;
+                    this._exitToMenu();
+                },
+                {
+                    title: title,
+                    rewardName: reward.name,
+                    rewardDesc: reward.desc,
+                    rewardColor: reward.color,
+                    isCup: reward.type === 'CUP'
+                }
+            );
+        } else {
+            this._exitToMenu();
+        }
     }
 
     _showResult(title, subtitle, onContinue, onMenu, options = {}) {
@@ -2447,15 +2459,19 @@ class GameScene extends Phaser.Scene {
 
     _drawAfterImages() {
         const g = this._afterImgGfx;
-        for (let i = this._afterImages.length - 1; i >= 0; i--) {
-            const ai = this._afterImages[i];
+        const arr = this._afterImages;
+        let w = 0;
+        for (let i = 0; i < arr.length; i++) {
+            const ai = arr[i];
             ai.life -= 16.667;
-            if (ai.life <= 0) { this._afterImages.splice(i, 1); continue; }
+            if (ai.life <= 0) continue;
             // Encode the desired alpha into the state snapshot so Stickman can
             // apply it per-draw-command via lineStyle alpha (works in WebGL).
             ai.state.dimAlpha = (ai.life / ai.maxLife) * 0.4;
             ai.renderer.draw(g, ai.state);
+            arr[w++] = ai;
         }
+        arr.length = w;
     }
 
     // =========================================================
@@ -2479,7 +2495,7 @@ class GameScene extends Phaser.Scene {
             );
 
             // Fighter color as integer
-            const fc = parseInt(f.color.replace('#', ''), 16);
+            const fc = f.colorInt;
             const pulse = 0.30 + Math.sin(pt * 3.5) * 0.20;
 
             // ── Glowing strip along the full height of the wall face ──

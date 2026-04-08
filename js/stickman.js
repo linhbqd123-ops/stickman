@@ -27,6 +27,9 @@ function _cssToAlpha(str) {
 }
 
 // ---- Stickman Class ----
+// DEAD_COLOR is a constant — cache the parsed integer once on first use.
+let _deadColorInt = null;
+
 class Stickman {
     constructor(color, shadow, flipX = false) {
         this.color = color;
@@ -63,7 +66,8 @@ class Stickman {
 
         // ---- Choose stroke color ----
         const invin = state.invTimer > 0 && !dead;
-        let strokeInt = dead ? _cssToInt(C.DEAD_COLOR)
+        if (_deadColorInt === null) _deadColorInt = _cssToInt(C.DEAD_COLOR);
+        let strokeInt = dead ? _deadColorInt
             : st === 'hurt' ? 0xffffff
                 : invin ? this._pulseInt(this.intColor, tick)
                     : this.intColor;

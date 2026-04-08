@@ -386,7 +386,8 @@ const CONFIG = Object.freeze({
             blastLeft: -170,
             blastRight: 1770,
             blastTop: -620,
-            blastBottom: 830,
+            blastBottom: 1000,
+            noSaitama: true,
             randomPlatformMovement: {
                 enabled: true,
                 minVelocity: -3.4,
@@ -395,7 +396,7 @@ const CONFIG = Object.freeze({
             },
             platforms: [
                 // Fractured arena: tiny core + unstable shards + risky rescue islands.
-                { id: 'vr_ground', x: 660, y: 620, w: 280, h: 240, passThrough: false },
+                { id: 'vr_ground', x: 660, y: 620, w: 380, h: 300, passThrough: false },
                 { id: 'vr_left_low', x: 180, y: 590, w: 120, h: 12, passThrough: true, phaseOnMs: 1700, phaseOffMs: 1150, phaseOffsetMs: 160 },
                 { id: 'vr_right_low', x: 1300, y: 590, w: 120, h: 12, passThrough: true, phaseOnMs: 1650, phaseOffMs: 1200, phaseOffsetMs: 760 },
                 { id: 'vr_left_mid', x: 420, y: 465, w: 140, h: 12, passThrough: true, phaseOnMs: 1500, phaseOffMs: 1250, phaseOffsetMs: 480 },
@@ -450,9 +451,10 @@ const CONFIG = Object.freeze({
     BOT_REACT_MS: 400,
     BOT_ATTACK_RATE: 0.022,
     BOT_DIFFICULTY_PRESETS: {
-        easy: { label: 'EASY', scalar: 0.28, airJumps: 1 },
-        medium: { label: 'MEDIUM', scalar: 0.58, airJumps: 1 },
-        hard: { label: 'HARD', scalar: 0.96, airJumps: 2 },
+        easy:   { label: 'EASY',   scalar: 0.28, airJumps: 1, speedMult: 1.0, jumpMult: 1.0, damageMult: 1.0 },
+        medium: { label: 'MEDIUM', scalar: 0.58, airJumps: 1, speedMult: 1.0, jumpMult: 1.0, damageMult: 1.0 },
+        hard:   { label: 'HARD',   scalar: 0.96, airJumps: 2, speedMult: 1.08, jumpMult: 1.06, damageMult: 1.10 },
+        boss:   { label: 'BOSS',   scalar: 1.0,  airJumps: 3, speedMult: 1.14, jumpMult: 1.10, damageMult: 1.18 },
     },
     BOT_ULTIMATE_WEIGHTS: {
         default: 1.0,
@@ -496,7 +498,7 @@ const CONFIG = Object.freeze({
         BOSS: {
             name: 'OMEGA TITAN',
             difficulty: 1.0,
-            aiLevel: 'hard',
+            aiLevel: 'boss',
             stocks: 7,
             // maxAirJumps = extra jumps in air; 3 means 4 jumps total including ground jump.
             maxAirJumps: 3,

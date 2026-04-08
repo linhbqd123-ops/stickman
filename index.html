@@ -135,6 +135,7 @@
             <div class="menu-wrap">
                 <h2 class="section-title">SELECT MODE</h2>
                 <nav class="menu-nav">
+                    <button class="menu-btn tour-btn" data-action="tournament">🏆 TOURNAMENT (CHALLENGE)</button>
                     <button class="menu-btn" data-action="1v1-pvp">👥 1v1 — 2 PLAYERS</button>
                     <button class="menu-btn" data-action="1v1-ai">🤖 1v1 — VS AI</button>
                     <div class="ai-diff-block hidden" id="ai-diff-block">
@@ -149,7 +150,6 @@
                         </div>
                     </div>
                     <button class="menu-btn" data-action="2v2"> ⚡ 2v2 — TEAM BATTLE</button>
-                    <button class="menu-btn" data-action="tournament">🏆 TOURNAMENT</button>
                 </nav>
                 <button class="menu-btn secondary back-btn" data-action="back-menu">← BACK</button>
             </div>
@@ -311,8 +311,82 @@
             <div class="fight-start-text" id="fight-start-text">FIGHT!</div>
         </div>
 
+        <!-- ===== UNIVERSAL GUIDE OVERLAY ===== -->
+        <div id="overlay-guide" class="overlay hidden">
+            <div class="overlay-box guide-large">
+                <div class="guide-header">
+                    <h2>COMMAND LIST & COMBOS</h2>
+                    <button class="close-guide" id="btn-close-guide">×</button>
+                </div>
+                <div class="guide-content">
+                    <div class="guide-section">
+                        <h3>CORE CONTROLS <span>BASICS</span></h3>
+                        <div class="guide-grid-controls">
+                            <div class="player-keys">
+                                <b>PLAYER 1</b><br>
+                                Move: <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>D</kbd><br>
+                                Attack: <kbd>J</kbd> (Light), <kbd>K</kbd> (Heavy)<br>
+                                Dash: <kbd>L</kbd> &nbsp; Drop: <kbd>F</kbd>
+                            </div>
+                            <div class="player-keys">
+                                <b>PLAYER 2</b><br>
+                                Move: <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><br>
+                                Attack: <kbd>1</kbd> (Light), <kbd>2</kbd> (Heavy)<br>
+                                Dash: <kbd>3</kbd> &nbsp; Drop: <kbd>0</kbd>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>BASIC COMBOS <span>ANY DIRECTION</span></h3>
+                        <div class="combo-list">
+                            <div class="combo-item">
+                                <span class="combo-input"><kbd>S</kbd> + <kbd>J</kbd></span>
+                                <span class="combo-desc"><b>Down Light:</b> Low leg sweep (Fast, knock up).</span>
+                            </div>
+                            <div class="combo-item">
+                                <span class="combo-input"><kbd>W</kbd> + <kbd>J</kbd></span>
+                                <span class="combo-desc"><b>Up Light:</b> Anti-air strike.</span>
+                            </div>
+                            <div class="combo-item">
+                                <span class="combo-input"><kbd>S</kbd> + <kbd>K</kbd></span>
+                                <span class="combo-desc"><b>Down Heavy:</b> Ground slam (High knockback).</span>
+                            </div>
+                            <div class="combo-item">
+                                <span class="combo-input"><kbd>W</kbd> + <kbd>K</kbd></span>
+                                <span class="combo-desc"><b>Up Heavy:</b> Rising launcher.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>AERIAL MOVES <span>IN AIR</span></h3>
+                        <div class="combo-list">
+                            <div class="combo-item">
+                                <span class="combo-input"><kbd>S</kbd> + <kbd>J</kbd></span>
+                                <span class="combo-desc"><b>Dair:</b> Downward spike (Effective for KOs).</span>
+                            </div>
+                            <div class="combo-item">
+                                <span class="combo-input"><kbd>W</kbd> + <kbd>J</kbd></span>
+                                <span class="combo-desc"><b>Uair:</b> High rotation kick.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-section highlight">
+                        <h3>Ultimate Secret Technique <span>ULTIMATE (Skill Box Required)</span></h3>
+                        <p>Pick up a <b style="color:#00e5ff">Skill Box</b> and press <kbd>J</kbd> + <kbd>K</kbd> when energy is full.</p>
+                        <div class="combo-item">
+                            <span class="combo-input"><kbd>J</kbd> + <kbd>K</kbd></span>
+                            <span class="combo-desc"><b>Ultimate Burst:</b> Screen-wide devastation.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ===== PAUSE MENU ===== -->
-        <div id="overlay-pause" class="overlay hidden">
+        <div id="overlay-pause" class="overlay hidden" style="z-index: 1000;">
             <div class="overlay-box" style="border-color: rgba(255,255,255,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8);">
                 <h2 style="color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5);">PAUSED</h2>
                 <div class="overlay-btns" style="flex-direction: column; width: 100%;">
@@ -321,26 +395,6 @@
                     <button class="menu-btn" id="btn-rematch" style="width: 100%; margin-bottom: 8px;">REMATCH</button>
                     <button class="menu-btn" id="btn-guide-toggle" style="width: 100%; margin-bottom: 8px;">GUIDE</button>
                     <button class="menu-btn secondary" id="btn-exit-match" style="width: 100%;">EXIT MATCH</button>
-                </div>
-                <div id="pause-guide" class="pause-guide hidden">
-                    <h3>KEY CONTROL & COMBO</h3>
-                    <div class="pause-guide-grid">
-                        <div>
-                            <b>Player 1</b><br>
-                            Move: A W S D<br>
-                            Light/Heavy: J / K<br>
-                            Dodge: L - Drop Skill: F<br>
-                            Ultimate: J + K (Energy full)
-                        </div>
-                        <div>
-                            <b>Player 2</b><br>
-                            Move: Arrow keys<br>
-                            Light/Heavy: Num1 / Num2<br>
-                            Dodge: Num3 - Drop Skill: Num0<br>
-                            Ultimate: Num1 + Num2 (Energy full)
-                        </div>
-                    </div>
-                    <p>The higher the damage %, the stronger the knockback. Dodge at the right moment to outplay and keep your stocks.</p>
                 </div>
             </div>
         </div>

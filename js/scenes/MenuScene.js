@@ -55,7 +55,12 @@ class MenuScene extends Phaser.Scene {
         // MenuScene registers them once; GameScene emits events.
         this._rewireBtn('btn-resume', () => this.game.events.emit('game:resume'));
         this._rewireBtn('btn-rematch', () => this.game.events.emit('game:rematch'));
-        this._rewireBtn('btn-guide-toggle', () => this.game.events.emit('game:toggle-guide'));
+        this._rewireBtn('btn-guide-toggle', () => {
+            document.getElementById('overlay-guide').classList.remove('hidden');
+        });
+        this._rewireBtn('btn-close-guide', () => {
+            document.getElementById('overlay-guide').classList.add('hidden');
+        });
         this._rewireBtn('btn-exit-match', () => this.game.events.emit('game:exit'));
 
         // Tournament win overlay
@@ -268,7 +273,7 @@ class MenuScene extends Phaser.Scene {
                 isPlayer: false,
                 stocks: C.DEFAULT_STOCKS,
                 maxAirJumps: 1,
-                aiLevel: (src.difficulty || 0) >= 0.82 ? 'hard' : 'medium',
+                aiLevel: (src.difficulty || 0) >= 0.82 ? 'hard' : ((src.difficulty || 0) <= 0.35 ? 'easy' : 'medium'),
             });
         }
 
