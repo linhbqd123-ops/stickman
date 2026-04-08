@@ -43,6 +43,9 @@ class MultiplayerManager {
         this.onPlayerLeft = null;  // (player)    => void
         this.onError = null;  // (err)       => void
         this.onHostDisconnect = null;  // ()          => void         — client only
+        this.onKicked = null;  // ()          => void         — client only
+        this.onMapUpdate = null;  // (mapKey)    => void         — client only
+        this.selectedMap = null;  // current map key (host sets, synced to clients)
     }
 
     /* ─────────────────────────────────────────────────────
@@ -172,11 +175,32 @@ class MultiplayerManager {
         this._broadcast({ type: 'mode-update', mode });
     }
 
+    /** Set map key — host only. Syncs chosen map to all clients in lobby. */
+    setMap(mapKey) {
+        if (this.role !== 'host') return;
+        this.selectedMap = mapKey;
+        this._broadcast({ type: 'map-update', mapKey });
+    }
+
+    /**
+     * Kick a player by their network player id — host only.
+     * Sends a 'kick' notice to the target then closes their connection.
+     */
+    kickPlayer(playerId) {
+        if (this.role !== 'host') return;
+        const conn = this.connections.find(c => c._mpId === playerId);
+        if (!conn || !conn.open) return;
+        conn.send({ type: 'kick' });
+        // Small delay so the message has time to arrive before we drop the link.
+        setTimeout(() => { try { conn.close(); } catch (_) { } }, 150);
+    }
+
     /** Start the game — host only. Fires onGameStart on all peers. */
     startGame() {
         if (this.role !== 'host') return;
         const config = {
             mode: this.gameMode,
+            mapKey: this.selectedMap,
             players: this._serialisePlayers(),
         };
         this._broadcast({ type: 'game-start', config });
@@ -249,8 +273,8 @@ class MultiplayerManager {
                 };
                 conn._mpId = nextId;
                 this.players.push(player);
-                // Tell joiner their slot + current lobby
-                conn.send({ type: 'welcome', yourId: nextId, players: this._serialisePlayers(), mode: this.gameMode });
+                // Tell joiner their slot + current lobby (include selected map)
+                conn.send({ type: 'welcome', yourId: nextId, players: this._serialisePlayers(), mode: this.gameMode, mapKey: this.selectedMap });
                 this._broadcastLobby();
                 this._fireLobbyUpdate();
                 break;
@@ -302,6 +326,7 @@ class MultiplayerManager {
                 if (this.role !== 'client') break;
                 this.players = msg.players || [];
                 this.gameMode = msg.mode || '1v1';
+                this.selectedMap = msg.mapKey || null;
                 this.localPlayer = {
                     ...((this.players.find(p => p.id === msg.yourId)) || { id: msg.yourId }),
                     isLocal: true,
@@ -325,6 +350,20 @@ class MultiplayerManager {
                 if (this.role !== 'client') break;
                 this.gameMode = msg.mode;
                 this._fireLobbyUpdate();
+                break;
+            }
+
+            case 'map-update': {
+                if (this.role !== 'client') break;
+                this.selectedMap = msg.mapKey || null;
+                if (this.onMapUpdate) this.onMapUpdate(msg.mapKey);
+                break;
+            }
+
+            case 'kick': {
+                if (this.role !== 'client') break;
+                if (this.onKicked) this.onKicked();
+                this._reset();
                 break;
             }
 

@@ -16,7 +16,7 @@
 
 (() => {
     const ULTIMATE_DEBUG = Object.freeze({
-        enabled: true,
+        enabled: false,
 
         // When true, print applied preset details in console.
         logToConsole: true,

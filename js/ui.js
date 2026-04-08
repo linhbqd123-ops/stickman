@@ -264,8 +264,9 @@ const UI = (() => {
      * @param {number}   localId   net.localPlayer.id
      * @param {boolean}  isHost
      * @param {Function} onSwitchTeam  (newTeam) => void  — only for local player
+     * @param {Function} onKick        (playerId) => void  — host only
      */
-    function renderLobbyPlayers(players, localId, isHost, onSwitchTeam) {
+    function renderLobbyPlayers(players, localId, isHost, onSwitchTeam, onKick) {
         const container = $('lobby-players');
         if (!container) return;
         container.innerHTML = '';
@@ -318,6 +319,16 @@ const UI = (() => {
                 card.appendChild(switchBtn);
             }
 
+            // Kick button — host only, not on host's own card
+            if (isHost && !isLocal) {
+                const kickBtn = document.createElement('button');
+                kickBtn.className = 'kick-btn';
+                kickBtn.title = 'Kick player';
+                kickBtn.textContent = '✕ KICK';
+                kickBtn.addEventListener('click', () => onKick && onKick(p.id));
+                card.appendChild(kickBtn);
+            }
+
             container.appendChild(card);
         }
     }
@@ -325,6 +336,13 @@ const UI = (() => {
     function setLobbyToken(token) {
         const el = $('lobby-token');
         if (el) el.textContent = token ? token.toUpperCase() : '--------';
+    }
+
+    /** Highlight the active map pill in the lobby map row. */
+    function renderLobbyMap(mapKey) {
+        document.querySelectorAll('#lobby-map-pills .map-pill').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.map === mapKey);
+        });
     }
 
     function setLobbyStatus(text) {
@@ -356,7 +374,7 @@ const UI = (() => {
         fitCanvas, getTournamentOptions,
         // online
         renderLobbyPlayers, setLobbyToken, setLobbyStatus, showOnlineError,
-        setHudPlayers,
+        renderLobbyMap, setHudPlayers,
     };
 })();
 

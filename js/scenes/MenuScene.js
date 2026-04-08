@@ -83,6 +83,20 @@ class MenuScene extends Phaser.Scene {
             });
         });
 
+        // Map pills inside lobby (host only — wired here, visibility toggled in _openLobby)
+        document.querySelectorAll('#lobby-map-pills .map-pill').forEach(pill => {
+            const clone = pill.cloneNode(true);
+            pill.replaceWith(clone);
+        });
+        document.querySelectorAll('#lobby-map-pills .map-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                if (Net.role !== 'host') return;
+                const mapKey = pill.dataset.map;
+                Net.setMap(mapKey);
+                UI.renderLobbyMap(mapKey);
+            });
+        });
+
         if (this._backToLobby && Net.role && Net.token) {
             // Returning from an online game — restore the lobby view
             this._setupLobbyCallbacks();
@@ -389,10 +403,12 @@ class MenuScene extends Phaser.Scene {
         UI.setLobbyToken(token);
 
         const modeRow = document.getElementById('lobby-mode-row');
+        const mapRow = document.getElementById('lobby-map-row');
         const startBtn = document.getElementById('btn-lobby-start');
         const readyBtn = document.getElementById('btn-lobby-ready');
 
         if (modeRow) modeRow.classList.toggle('hidden', !isHost);
+        if (mapRow) mapRow.classList.toggle('hidden', !isHost);
         if (startBtn) startBtn.classList.toggle('hidden', !isHost);
         if (readyBtn) readyBtn.classList.remove('hidden');
 
@@ -400,6 +416,14 @@ class MenuScene extends Phaser.Scene {
         if (readyBtn) {
             readyBtn.textContent = '✓ READY';
             readyBtn.classList.remove('is-ready');
+        }
+
+        // Host: pre-select the currently stored map (or first available)
+        if (isHost) {
+            const defaultMap = Net.selectedMap || CONFIG.DEFAULT_MAP ||
+                Object.keys(CONFIG.MAPS || {})[0] || 'naruto';
+            Net.setMap(defaultMap);
+            UI.renderLobbyMap(defaultMap);
         }
 
         this._refreshLobby(Net.players);
@@ -413,6 +437,7 @@ class MenuScene extends Phaser.Scene {
             UI.showScreen('game');
             this.scene.start('GameScene', {
                 mode: config.mode,
+                mapKey: config.mapKey || CONFIG.DEFAULT_MAP,
                 online: true,
                 netConfig: config,
                 tournament: null,
@@ -424,6 +449,17 @@ class MenuScene extends Phaser.Scene {
             Net.disconnect();
             UI.showScreen('online-menu');
             UI.showOnlineError('Host disconnected.');
+        };
+
+        Net.onKicked = () => {
+            Net.disconnect();
+            UI.showScreen('online-menu');
+            UI.showOnlineError('You were kicked from the room.');
+        };
+
+        Net.onMapUpdate = mapKey => {
+            // Client: update map pill highlight to reflect host's choice
+            UI.renderLobbyMap(mapKey);
         };
 
         Net.onPlayerLeft = p => {
@@ -441,12 +477,15 @@ class MenuScene extends Phaser.Scene {
         const isHost = Net.role === 'host';
 
         UI.renderLobbyPlayers(players, localId, isHost,
-            newTeam => Net.switchTeam(newTeam));
+            newTeam => Net.switchTeam(newTeam),
+            playerId => Net.kickPlayer(playerId));
 
         // Update mode pill selection for clients
         if (!isHost) {
             document.querySelectorAll('.mode-pill').forEach(p =>
                 p.classList.toggle('active', p.dataset.mode === Net.gameMode));
+            // Update map pill highlight for clients
+            if (Net.selectedMap) UI.renderLobbyMap(Net.selectedMap);
         }
 
         // Start button: enabled when 2+ players and enough are ready
@@ -486,10 +525,11 @@ class MenuScene extends Phaser.Scene {
         if (Net.role !== 'host') return;
         Net.startGame();
         // Host launches game directly (onGameStart also fires for host in network.js)
-        const config = { mode: Net.gameMode, players: Net.players };
+        const config = { mode: Net.gameMode, mapKey: Net.selectedMap, players: Net.players };
         UI.showScreen('game');
         this.scene.start('GameScene', {
             mode: config.mode,
+            mapKey: config.mapKey || CONFIG.DEFAULT_MAP,
             online: true,
             netConfig: config,
             tournament: null,

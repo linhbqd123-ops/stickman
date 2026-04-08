@@ -1333,6 +1333,31 @@ kbd {
     background: rgba(255, 61, 61, 0.12);
 }
 
+/* Kick button (host only, on other players' cards) */
+.kick-btn {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    border: 1.5px solid rgba(255, 61, 61, 0.45);
+    background: transparent;
+    color: rgba(255, 100, 100, 0.85);
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.kick-btn:hover {
+    background: rgba(255, 61, 61, 0.15);
+    color: #ff6464;
+}
+
+.kick-btn:active {
+    transform: scale(0.92);
+}
+
 /* Empty slot cards */
 .player-card.empty-slot {
     border-style: dashed;
@@ -1399,6 +1424,57 @@ kbd {
     background: rgba(0, 229, 255, 0.10);
     border-color: var(--c-glow);
     box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+}
+
+/* ── Lobby map selector ── */
+.lobby-map-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    background: rgba(0, 229, 255, 0.03);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r);
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.lobby-map-row.hidden {
+    display: none;
+}
+
+.map-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.map-pill {
+    padding: 5px 13px;
+    font-family: var(--font-main);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: rgba(200, 220, 255, 0.55);
+    background: transparent;
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.map-pill:hover {
+    color: var(--c-text);
+    border-color: rgba(0, 229, 255, 0.35);
+}
+
+.map-pill.active {
+    color: #ffe566;
+    background: rgba(255, 229, 102, 0.10);
+    border-color: #ffe566;
+    box-shadow: 0 0 10px rgba(255, 229, 102, 0.18);
 }
 
 /* ── Status text ── */
