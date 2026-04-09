@@ -146,25 +146,29 @@ class Bot {
 
     // ----------------------------------------------------------
     // Boss immunity — teleport to safe ground if fallen too deep
+    // Only teleports from BOTTOM pit. Top/side blasts handled by _checkBlastZone
     // ----------------------------------------------------------
     _handleBossInvulnerability(opp) {
         const f = this.fighter;
         if (f.state === 'dead' || f._respawning) return;
 
         const b = this._blastBounds();
-        // Trigger teleport when significantly below the map's visual floor
-        // (but well before blastBottom so it doesn't count as a blast-zone KO)
-        const teleportTriggerY = b.bottom - 180;
-        if (f.y < teleportTriggerY) return;
 
-        // Find safe ground to teleport onto
+        // ONLY teleport if falling into BOTTOM pit (way below map)
+        // Top/side: Let _checkBlastZone handle normally
+        const teleportTriggerY = b.bottom - 180;
+
+        // If above trigger, don't teleport - let normal physics continue
+        if (f.y <= teleportTriggerY) return;
+
+        // Below trigger = deep pit, teleport back
         const target = this._bestRecoveryTarget();
         if (!target) return;
 
         f.x = target.x;
         f.y = target.y - 30;
         f.vx = 0;
-        f.vy = -4;  // tiny upward nudge so they land clean
+        f.vy = -4;
         f.onGround = false;
         f.state = 'airborne';
     }
@@ -873,8 +877,11 @@ class Bot {
         const p = this._profile;
 
         // Hard boundary push-back (blast zone margin)
-        if (f.x <= b.left + 110) inp.right = true;
-        if (f.x >= b.right - 110) inp.left = true;
+        // Boss level: disable side boundary protection so it can be hit by side blasts
+        if (this.level !== 'boss') {
+            if (f.x <= b.left + 110) inp.right = true;
+            if (f.x >= b.right - 110) inp.left = true;
+        }
 
         const dir = inp.right ? 1 : (inp.left ? -1 : 0);
         const action = this._action || {};

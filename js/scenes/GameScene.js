@@ -2177,8 +2177,26 @@ class GameScene extends Phaser.Scene {
                         { continueLabel: 'CONTINUE', menuLabel: 'QUIT' }
                     );
                 } else {
-                    this.tournament.recordWinner(1);
-                    this._onTournamentEnd();
+                    // Check if this is the final floor - offer retry if so
+                    if (this.tournament.isFinalFloor()) {
+                        UI.showRoundResult(
+                            'DEFEAT!', 'Try again?',
+                            () => {
+                                // Retry: restart the current match
+                                this._restartMatch();
+                            },
+                            () => {
+                                // Give up: end tournament
+                                this.tournament.recordWinner(1);
+                                this._onTournamentEnd();
+                            },
+                            { continueLabel: 'RETRY', menuLabel: 'GIVE UP' }
+                        );
+                    } else {
+                        // Not final floor: end tournament immediately
+                        this.tournament.recordWinner(1);
+                        this._onTournamentEnd();
+                    }
                 }
             } else {
                 const winnerF = p1Won ? f0 : f1;

@@ -141,6 +141,24 @@ class MenuScene extends Phaser.Scene {
     }
 
     _rewireMenuButtons() {
+        // Show/hide boss button based on debug config
+        const bossBtnId = Array.from(document.querySelectorAll('[data-diff="boss"]')).map(btn => btn.id)[0];
+        if (bossBtnId) {
+            const bossBtn = document.getElementById(bossBtnId);
+            if (bossBtn) bossBtn.classList.toggle('hidden', !CONFIG.DEBUG.enableBossLevel);
+        } else if (CONFIG.DEBUG.enableBossLevel) {
+            // Boss button doesn't exist yet, create it dynamically
+            const hardBtn = document.querySelector('[data-diff="hard"]');
+            if (hardBtn && hardBtn.parentElement) {
+                const bossBtn = hardBtn.cloneNode(true);
+                bossBtn.dataset.action = '1v1-ai-boss';
+                bossBtn.dataset.diff = 'boss';
+                bossBtn.textContent = 'Boss';
+                bossBtn.classList.remove('selected');
+                hardBtn.parentElement.appendChild(bossBtn);
+            }
+        }
+
         document.querySelectorAll('[data-action]').forEach(btn => {
             const clone = btn.cloneNode(true);
             btn.replaceWith(clone);
@@ -175,6 +193,7 @@ class MenuScene extends Phaser.Scene {
             case '1v1-ai-easy': this._setAiDifficulty('easy'); this._showMapSelect('1vAI', 'easy'); break;
             case '1v1-ai-medium': this._setAiDifficulty('medium'); this._showMapSelect('1vAI', 'medium'); break;
             case '1v1-ai-hard': this._setAiDifficulty('hard'); this._showMapSelect('1vAI', 'hard'); break;
+            case '1v1-ai-boss': this._setAiDifficulty('boss'); this._showMapSelect('1vAI', 'boss'); break;
             case '2v2': this._show2v2Difficulty(); break;
             case '2v2-easy': this._set2v2Difficulty('easy'); this._showMapSelect('2v2', 'easy'); break;
             case '2v2-medium': this._set2v2Difficulty('medium'); this._showMapSelect('2v2', 'medium'); break;
@@ -229,6 +248,7 @@ class MenuScene extends Phaser.Scene {
 
     _setAiDifficulty(level) {
         const valid = ['easy', 'medium', 'hard'];
+        if (CONFIG.DEBUG.enableBossLevel) valid.push('boss');
         const next = valid.includes(level) ? level : 'medium';
         this._selectedAiDifficulty = next;
 

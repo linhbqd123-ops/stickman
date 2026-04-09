@@ -85,7 +85,7 @@ class Tournament {
             this.current++;
             // Tier up rank based on progress
             this.rankIndex = Math.min(this.current, RANKS.length - 1);
-            
+
             if (this.current >= this.floors.length) {
                 this._over = true;
                 this._champion = this.player;
@@ -122,6 +122,11 @@ class Tournament {
 
     isOver() { return this._over; }
 
+    isFinalFloor() {
+        if (this._over || this.current < 0 || this.current >= this.floors.length) return false;
+        return this.current === this.floors.length - 1;
+    }
+
     champion() {
         if (!this._over) return null;
         return this._champion;
@@ -137,7 +142,7 @@ class Tournament {
             <div class="rank-label">CURRENT RANK</div>
             <div class="rank-name" style="color:${currentRank.color}">${currentRank.name}</div>
         </div>`;
-        
+
         html += '<div class="bracket-tree">';
 
         for (let i = 0; i < this.floors.length; i++) {

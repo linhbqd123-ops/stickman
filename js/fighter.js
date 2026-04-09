@@ -515,6 +515,7 @@ class Fighter {
     //  Attack
     // =========================================================
     _startAttack(atkKey, opponents, particles, C) {
+        console.log(opponents[0].id);
         let atk = CONFIG.ATTACKS[atkKey];
         if (!atk) {
             const fb = atkKey.includes('heavy') ? 'heavy_neutral' : 'light_neutral';

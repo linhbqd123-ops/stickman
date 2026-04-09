@@ -670,6 +670,11 @@ const CONFIG = Object.freeze({
             // remaining ~8% → random from above pool
         },
     },
+
+    // Debug mode — set to true to enable boss level selection in 1vAI
+    DEBUG: {
+        enableBossLevel: false,
+    },
 });
 
 // Expose CONFIG globally for ESM modules
