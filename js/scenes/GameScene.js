@@ -430,10 +430,10 @@ class GameScene extends Phaser.Scene {
             const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
             const p = presets[presetKey];
             if (!p) return;
-            if (Number.isFinite(p.speedMult))  fighter.speedMult  = p.speedMult;
-            if (Number.isFinite(p.jumpMult))   fighter.jumpMult   = p.jumpMult;
+            if (Number.isFinite(p.speedMult)) fighter.speedMult = p.speedMult;
+            if (Number.isFinite(p.jumpMult)) fighter.jumpMult = p.jumpMult;
             if (Number.isFinite(p.damageMult)) fighter.damageMult = p.damageMult;
-            if (Number.isFinite(p.airJumps))   fighter.maxAirJumps = Math.max(0, p.airJumps);
+            if (Number.isFinite(p.airJumps)) fighter.maxAirJumps = Math.max(0, p.airJumps);
         };
 
         const applyTournamentMeta = (fighter, meta) => {
@@ -500,15 +500,24 @@ class GameScene extends Phaser.Scene {
             this.bots.push({ fighter: f1, bot: new Bot(f1, aiDiff, { scene: this, level: this.aiDifficulty }) });
 
         } else if (mode === '2v2') {
+            const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
+            const preset = presets[this.aiDifficulty] || presets.medium || { label: 'MEDIUM', scalar: 0.45, airJumps: 1 };
+            const aiDiff = Number.isFinite(preset.scalar) ? preset.scalar : 0.45;
             const f0 = make(0, _sp.left2, true, true, C.KEYS_P1, PRESETS[0], 0);
-            const f1 = make(1, _sp.left1, true, false, null, PRESETS[2], 0, 0.45);
+            const f1 = make(1, _sp.left1, true, false, null, PRESETS[2], 0, aiDiff);
             const f2 = make(2, _sp.right1, false, true, C.KEYS_P2, PRESETS[1], 1);
-            const f3 = make(3, _sp.right2, false, false, null, PRESETS[3], 1, 0.45);
+            const f3 = make(3, _sp.right2, false, false, null, PRESETS[3], 1, aiDiff);
+            f1.maxAirJumps = Number.isFinite(preset.airJumps) ? Math.max(0, preset.airJumps) : 1;
+            f3.maxAirJumps = Number.isFinite(preset.airJumps) ? Math.max(0, preset.airJumps) : 1;
+            applyPresetStats(f1, this.aiDifficulty);
+            applyPresetStats(f3, this.aiDifficulty);
+            f1._difficultyName = preset.label || this.aiDifficulty.toUpperCase();
+            f3._difficultyName = preset.label || this.aiDifficulty.toUpperCase();
             f0._name = 'PLAYER 1'; f1._name = 'ALLY';
             f2._name = 'PLAYER 2'; f3._name = 'FOE';
             this.fighters.push(f0, f1, f2, f3);
-            this.bots.push({ fighter: f1, bot: new Bot(f1, 0.45, { scene: this }) });
-            this.bots.push({ fighter: f3, bot: new Bot(f3, 0.45, { scene: this }) });
+            this.bots.push({ fighter: f1, bot: new Bot(f1, aiDiff, { scene: this, level: this.aiDifficulty }) });
+            this.bots.push({ fighter: f3, bot: new Bot(f3, aiDiff, { scene: this, level: this.aiDifficulty }) });
 
         } else if (mode === 'tournament' && this.tournamentMatch) {
             const { p1, p2 } = this.tournamentMatch;
@@ -535,7 +544,7 @@ class GameScene extends Phaser.Scene {
         }
         const modeLabels = { '1v1': '2P VS', '1vAI': 'VS AI', '2v2': '2v2 TEAM', 'ffa': 'FREE FOR ALL', 'tournament': 'TOWER' };
         let modeLabel = modeLabels[mode] || mode;
-        if (mode === '1vAI') {
+        if (mode === '1vAI' || mode === '2v2') {
             const presets = CONFIG.BOT_DIFFICULTY_PRESETS || {};
             const preset = presets[this.aiDifficulty] || presets.medium;
             const diffLabel = (preset && preset.label) ? preset.label : this.aiDifficulty.toUpperCase();
@@ -987,7 +996,7 @@ class GameScene extends Phaser.Scene {
             lifetime: D.maxLifetime,
             onGround: false,
             sprite,
-        }); 
+        });
     }
 
     _dropUltimateFromFighter(fighter) {
@@ -2189,10 +2198,10 @@ class GameScene extends Phaser.Scene {
         const champ = this.tournament.champion();
         const playerWon = !!(champ && champ.isPlayer);
         const reward = this.tournament.getReward();
-        
+
         let title = playerWon ? 'CHAMPION!' : 'LEVEL FAILED';
         let msg = playerWon ? 'You conquered the tower!' : `Tournament ended at floor ${this.tournament.clearedCount + 1}.`;
-        
+
         if (reward) {
             UI.showTournamentWin(
                 msg,

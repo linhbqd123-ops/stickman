@@ -175,7 +175,10 @@ class MenuScene extends Phaser.Scene {
             case '1v1-ai-easy': this._setAiDifficulty('easy'); this._showMapSelect('1vAI', 'easy'); break;
             case '1v1-ai-medium': this._setAiDifficulty('medium'); this._showMapSelect('1vAI', 'medium'); break;
             case '1v1-ai-hard': this._setAiDifficulty('hard'); this._showMapSelect('1vAI', 'hard'); break;
-            case '2v2': this._showMapSelect('2v2'); break;
+            case '2v2': this._show2v2Difficulty(); break;
+            case '2v2-easy': this._set2v2Difficulty('easy'); this._showMapSelect('2v2', 'easy'); break;
+            case '2v2-medium': this._set2v2Difficulty('medium'); this._showMapSelect('2v2', 'medium'); break;
+            case '2v2-hard': this._set2v2Difficulty('hard'); this._showMapSelect('2v2', 'hard'); break;
             case 'tournament': UI.showScreen('tournament-setup'); break;
             case 'start-tournament': this._startTournament(); break;
             // ── Online ──
@@ -192,11 +195,16 @@ class MenuScene extends Phaser.Scene {
     // ────────────────────────────────────────────────────────────
     _showMapSelect(mode, aiDifficulty = null) {
         this._showAiDifficulty(false);
+        this._show2v2Difficulty(false);
         this._pendingMode = mode;
         if (mode === '1vAI') {
             this._pendingAiDifficulty = aiDifficulty || this._selectedAiDifficulty || 'medium';
             this._selectedAiDifficulty = this._pendingAiDifficulty;
             this._setAiDifficulty(this._selectedAiDifficulty);
+        } else if (mode === '2v2') {
+            this._pendingAiDifficulty = aiDifficulty || this._selectedAiDifficulty || 'medium';
+            this._selectedAiDifficulty = this._pendingAiDifficulty;
+            this._set2v2Difficulty(this._selectedAiDifficulty);
         }
         // Highlight previously selected map
         document.querySelectorAll('.map-card').forEach(card => {
@@ -213,7 +221,7 @@ class MenuScene extends Phaser.Scene {
         this.scene.start('GameScene', {
             mode,
             mapKey: mapKey || this._selectedMap,
-            aiDifficulty: mode === '1vAI' ? this._selectedAiDifficulty : null,
+            aiDifficulty: (mode === '1vAI' || mode === '2v2') ? this._selectedAiDifficulty : null,
             tournament: this._tournament,
             tournamentMatch: null,
         });
@@ -231,6 +239,30 @@ class MenuScene extends Phaser.Scene {
 
     _showAiDifficulty(force) {
         const panel = document.getElementById('ai-diff-block');
+        if (!panel) return;
+
+        if (typeof force === 'boolean') {
+            panel.classList.toggle('hidden', !force);
+            return;
+        }
+
+        panel.classList.toggle('hidden');
+    }
+
+    _set2v2Difficulty(level) {
+        const valid = ['easy', 'medium', 'hard'];
+        const next = valid.includes(level) ? level : 'medium';
+        this._selectedAiDifficulty = next;
+
+        const panel = document.getElementById('2v2-diff-block');
+        if (!panel) return;
+        panel.querySelectorAll('.ai-diff-btn').forEach(btn => {
+            btn.classList.toggle('selected', btn.dataset.diff === next);
+        });
+    }
+
+    _show2v2Difficulty(force) {
+        const panel = document.getElementById('2v2-diff-block');
         if (!panel) return;
 
         if (typeof force === 'boolean') {
