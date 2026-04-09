@@ -331,7 +331,7 @@ const CONFIG = Object.freeze({
             blastLeft: -300,
             blastRight: 1900,
             blastTop: -500,
-            blastBottom: 1500,
+            blastBottom: 1350,
             bgImagePath: 'assets/maps/dragonball/bg_main.png',
             randomPlatformMovement: {
                 enabled: true,
@@ -341,14 +341,17 @@ const CONFIG = Object.freeze({
             },
             platforms: [
                 { id: 'db_ground', x: 300, y: 620, w: 600, h: 1000, displayHeight: 1000, imageAnchorY: 0, passThrough: false, imagePath: 'assets/maps/dragonball/platforms/plat_ground.png', imageKey: 'plat_db_ground' },
-                { id: 'db_lower_left', x: -100, y: 990, w: 220, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
-                { id: 'db_lower_right', x: 1000, y: 880, w: 220, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
-                { id: 'db_left_mid', x: -60, y: 750, w: 200, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
-                { id: 'db_center_low', x: 500, y: 400, w: 280, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png', imageKey: 'plat_db_energy_plat' },
-                { id: 'db_right_mid', x: 1050, y: 490, w: 200, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
-                { id: 'db_left_high', x: 100, y: 450, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
-                { id: 'db_center_high', x: 620, y: 250, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png', imageKey: 'plat_db_energy_nexus' },
-                { id: 'db_right_high', x: 990, y: 700, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_left_high', x: -50, y: 480, w: 150, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png', imageKey: 'plat_db_energy_nexus' },
+                { id: 'db_left_mid_1', x: -70, y: 660, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_left_mid_2', x: -60, y: 850, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_left_low_1', x: -80, y: 1050, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_left_low_2', x: -55, y: 1250, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_center_low', x: 500, y: 350, w: 280, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_platform.png', imageKey: 'plat_db_energy_plat' },
+                { id: 'db_right_high', x: 1110, y: 480, w: 150, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_nexus.png', imageKey: 'plat_db_energy_nexus' },
+                { id: 'db_right_mid_1', x: 1050, y: 660, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_right_mid_2', x: 1070, y: 850, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
+                { id: 'db_right_low_1', x: 1080, y: 1050, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_ki_base.png', imageKey: 'plat_db_ki_base' },
+                { id: 'db_right_low_2', x: 1060, y: 1250, w: 180, h: 1, displayHeight: 100, imageAnchorY: 0.45, passThrough: true, imagePath: 'assets/maps/dragonball/platforms/plat_energy_cube.png', imageKey: 'plat_db_energy_cube' },
             ],
         },
         fptsoftware: {
@@ -358,7 +361,7 @@ const CONFIG = Object.freeze({
             // Map-specific blast bounds
             blastLeft: -300,
             blastRight: 1900,
-            blastTop: -500,
+            blastTop: -450,
             blastBottom: 900,
             bgImagePath: 'assets/maps/fptsoftware/bg_main.png',
             randomPlatformMovement: {
@@ -375,7 +378,6 @@ const CONFIG = Object.freeze({
                 { id: 'fpt_center_shelf', x: 710, y: 430, w: 180, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_server_rack.png', imageKey: 'plat_fpt_server' },
                 { id: 'fpt_right_shelf', x: 1300, y: 410, w: 180, h: 18, displayHeight: 45, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_shelf.png', imageKey: 'plat_fpt_shelf' },
                 { id: 'fpt_left_window', x: 140, y: 320, w: 160, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
-                { id: 'fpt_center_monitor', x: 720, y: 280, w: 160, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_monitor.png', imageKey: 'plat_fpt_monitor' },
                 { id: 'fpt_right_window', x: 1300, y: 320, w: 160, h: 16, displayHeight: 40, imageAnchorY: 0, passThrough: true, imagePath: 'assets/maps/fptsoftware/platforms/plat_window.png', imageKey: 'plat_fpt_window' },
             ],
         },
@@ -467,26 +469,26 @@ const CONFIG = Object.freeze({
         naruto: {
             edgeLookAheadMult: 1.06,
             recoveryMarginMult: 1.07,
-            airHuntBonus: 0.03,
-            aggressionBonus: 0.02,
+            airHuntBonus: 0.05,
+            aggressionBonus: 0.03,
         },
         dragonball: {
             edgeLookAheadMult: 1.20,
             recoveryMarginMult: 1.25,
-            airHuntBonus: 0.08,
-            aggressionBonus: 0.04,
+            airHuntBonus: 0.02,
+            aggressionBonus: 0.01,
         },
         fptsoftware: {
             edgeLookAheadMult: 0.96,
             recoveryMarginMult: 0.92,
-            airHuntBonus: 0.01,
-            aggressionBonus: 0.01,
+            airHuntBonus: 0.06,        // ↑ Tăng: bot săn đuổi trên không
+            aggressionBonus: 0.08,     // ↑ Tăng: bot aggressive hơn + attack nhiều hơn
         },
         voidrift: {
             edgeLookAheadMult: 1.32,
             recoveryMarginMult: 1.45,
             airHuntBonus: 0.12,
-            aggressionBonus: 0.06,
+            aggressionBonus: 0.09,
         },
     },
 
